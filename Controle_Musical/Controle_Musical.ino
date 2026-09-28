@@ -11,8 +11,12 @@
 #include <driver/i2s.h>
 
 // CONFIGURAÇÃO DE REDE
-const char* ssid     = "Rede_Comunicacao";
+// const char* ssid     = "Rede_Comunicacao";
+// const char* password = "123456789";
+const char* ssid     = "ESP IoT";
 const char* password = "123456789";
+// const char* ssid     = "CLARO_6E22E7-IoT";
+// const char* password = "Enzomorfo6927";
 
 // PINOS DE HARDWARE - INMP441 e Relés
 const int I2S_WS  = 19;
@@ -24,7 +28,7 @@ const int PINO_RELE_MEDIO = 26;
 const int PINO_RELE_AGUDO = 27;
 
 // PARÂMETROS DE AMOSTRAGEM E TIMING
-const float    FREQUENCIA_AMOSTRAGEM = 9000.0f; // Hz — define o teto de Nyquist em 4500 Hz
+const float    FREQUENCIA_AMOSTRAGEM = 9000.0f;  // Hz — define o teto de Nyquist em 4500 Hz
 const uint16_t AMOSTRAS              = 64;       // Amostras por pacote DMA
 const int      BLANKING_MS           = 60;       // Janela cega após disparo de relé (evita microfonia)
 
@@ -371,6 +375,13 @@ void loop() { // LOOP PRINCIPAL
   i2s_read(I2S_PORT, amostrasBrutas, sizeof(amostrasBrutas), &bytesLidos, pdMS_TO_TICKS(20));
   if (bytesLidos == 0) return;
 
+  // Serial.begin(115200);
+  // // Serial.println(bytesLidos);
+
+  // // TESTE DE DIAGNÓSTICO RIGOROSO:
+  // Serial.println(amostrasBrutas[0]);
+  // return; // Interrompe o resto do loop. Esqueça relés e filtros por enquanto.
+
   int numAmostras = bytesLidos / sizeof(int32_t);
 
   // --- 2. FILTRAGEM ---
@@ -417,7 +428,7 @@ void loop() { // LOOP PRINCIPAL
 
   // --- 6. PING PARA A REDE DE COMUNICAÇÃO ---
   static unsigned long lastPing = 0;
-  if (agora - lastPing > 5000) {
+  if (agora - lastPing > 30000) { // era 5000
     lastPing = agora;
     if (WiFi.status() == WL_CONNECTED) {
       HTTPClient http;
