@@ -1,4 +1,4 @@
-// Irrigação Automática V12 - Monitor de Umidade
+// Irrigação Automática - Monitor de Umidade
 // Hardware: ESP32 + Divisor de Tensão + Relé
 
 #include <WiFi.h>

@@ -1,4 +1,4 @@
-// Rede de Comunicação V5 - Gerador de rede + Monitor de Projetos
+// Rede de Comunicação - Gerador de rede + Monitor de Projetos
 // Hardware: ESP32 + Display OLED
 
 #include <WiFi.h>
@@ -25,11 +25,18 @@ struct Projeto {
   bool ativo;
 };
 
+// Projeto listaProjetos[4] = { // Projetos monitorados
+//   {"Irrigacao", "0.0.0.0", 0, false},
+//   {"Musical", "0.0.0.0", 0, false},
+//   {"Anemometro", "0.0.0.0", 0, false},
+//   {"Balanca", "0.0.0.0", 0, false}
+// };
+
 Projeto listaProjetos[4] = { // Projetos monitorados
-  {"Irrigacao", "0.0.0.0", 0, false},
-  {"Musical", "0.0.0.0", 0, false},
-  {"Anemometro", "0.0.0.0", 0, false},
-  {"Balanca", "0.0.0.0", 0, false}
+  {"Anemometro A", "0.0.0.0", 0, false},
+  {"Anemometro B", "0.0.0.0", 0, false},
+  {"Anemometro C", "0.0.0.0", 0, false},
+  {"Anemometro D", "0.0.0.0", 0, false}
 };
 
 // --- FRONT-END HTML ---

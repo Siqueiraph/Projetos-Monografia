@@ -1,4 +1,4 @@
-// Controle Musical V16 - Filtro Passa Banda
+// Controle Musical - Filtro Passa Banda
 // Hardware: ESP32 + Microfone INMP441 (Digital I2S) + Relé 3x
 
 #include <WiFi.h>

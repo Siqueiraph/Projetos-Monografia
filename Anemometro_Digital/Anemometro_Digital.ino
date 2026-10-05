@@ -1,5 +1,5 @@
-// Anemometro Digital V3 - Monitor de Velocidade do Vento (m/s e rad/s)
-// Hardware: ESP32 + Sensor Hall KY-003
+// Anemometro Digital - Monitor de Velocidade do Vento (m/s e rad/s)
+// Hardware: ESP32 + Sensor Hall KY-003 ou Reed Switch KY-025
 
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
@@ -9,18 +9,20 @@
 #include <math.h>
 
 // CONFIGURAÇÃO DE REDE
-const char* ssid     = "Rede_Comunicacao";
-const char* password = "123456789";
+// const char* ssid     = "Rede_Comunicacao";
+// const char* password = "123456789";
+const char* ssid     = "CLARO_6E22E7-IoT";
+const char* password = "Enzomorfo6927";
 
 // PINOS DE HARDWARE
-const int PINO_HALL = 14; // Entrada Digital do Sensor Hall
+const int PINO_SENSOR = 14; // Entrada Digital do Sensor
 
 // VARIÁVEIS VOLÁTEIS PARA INTERRUPÇÃO (ISR)
 volatile unsigned long tempoUltimoPulso = 0;
 volatile unsigned long deltaTempoRaw = 0;
 volatile bool novoPulso = false;
 
-// Função de Interrupção Acionada pelo Sensor Hall
+// Função de Interrupção Acionada pelo Sensor
 void IRAM_ATTR ISR_DetectaIma() {
   unsigned long agora = millis();
   // Debounce de 15ms para evitar ruído mecânico/magnético
@@ -261,8 +263,11 @@ void conectarWiFi() { // CONEXÃO WI-FI
 }
 
 void setup() { // SETUP
-  pinMode(PINO_HALL, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(PINO_HALL), ISR_DetectaIma, FALLING);
+  // pinMode(PINO_SENSOR, INPUT_PULLUP); // Sensor Hall 
+  // attachInterrupt(digitalPinToInterrupt(PINO_SENSOR), ISR_DetectaIma, FALLING);
+
+  pinMode(PINO_SENSOR, INPUT_PULLDOWN); // Sensor Reed
+  attachInterrupt(digitalPinToInterrupt(PINO_SENSOR), ISR_DetectaIma, RISING);
 
   preferences.begin("anemo_cfg", false);
   raioRotor = preferences.getInt("raio", 10);
@@ -335,7 +340,7 @@ void loop() { // LOOP PRINCIPAL
 
   // Ping para o Módulo Central de Comunicação
   static unsigned long lastPing = 0;
-  if (agora - lastPing > 5000) {
+  if (agora - lastPing > 30000) { // era 5000
     lastPing = agora;
     if (WiFi.status() == WL_CONNECTED) {
       HTTPClient http;
