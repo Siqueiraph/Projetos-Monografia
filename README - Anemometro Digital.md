@@ -32,6 +32,10 @@ O princípio de funcionamento baseia-se na contagem de pulsos causados pela pass
 
 > **Nota:** Caso o sistema não detecte novos pulsos durante um intervalo superior a $3000\text{ ms}$, assume-se que o rotor parou, zerando automaticamente as variáveis $\omega$ e $v$.
 
+Paralelamente ao cálculo de $v$ e $\omega$, o firmware também amostra a saída **analógica** (AO) do sensor a cada $5\text{ ms}$ (independentemente da interrupção), permitindo visualizar a intensidade bruta e contínua do campo magnético — antes de qualquer processamento. Isso evidencia ao estudante a etapa de transdução (o fenômeno magnético convertido em um sinal elétrico graduado) separadamente da etapa de cálculo (o sinal digital, já limiarizado, convertido em grandezas físicas).
+
+> **Nota sobre DO vs. AO:** o módulo do sensor expõe duas saídas simultâneas. A saída digital (DO), usada na interrupção para medir $\Delta t$, é um comparador interno ao módulo que já aplica um limiar ajustável fisicamente por um trimpot — ela informa apenas *se* o ímã está próximo o suficiente, não *o quão* próximo. A saída analógica (AO) não passa por esse comparador e entrega a tensão bruta proporcional à intensidade do campo captado, por isso é a fonte correta para o gráfico de intensidade relativa.
+
 ---
 
 ## ⚡ Recursos e Funcionalidades
@@ -39,6 +43,7 @@ O princípio de funcionamento baseia-se na contagem de pulsos causados pela pass
 * **Amostragem Baseada em Interrupção:** Leitura precisa de tempo de pulso via ISR com *debouncing* por software ($15\text{ ms}$) para atenuar ruídos mecânicos/magnéticos.
 * **Interface Web Responsiva Integrada:** Servidor *web* assíncrono embarcado em HTML/CSS/JS.
 * **Gráfico Dinâmico em Tempo Real:** Renderização por `HTML5 Canvas` que exibe a velocidade do vento $v$ ($\text{m/s}$) e a velocidade angular $\omega$ ($\text{rad/s}$) em um histórico contínuo.
+* **Gráfico de Intensidade Analógica do Sensor:** Segundo `HTML5 Canvas`, posicionado logo abaixo do primeiro, que exibe a leitura contínua ($0$–$4095$, resolução ADC de 12 bits) da saída analógica (AO) do sensor, amostrada em um buffer circular de $100$ pontos a cada $5\text{ ms}$.
 * **Calibração Dinâmica:** Ajuste dos parâmetros geométricos (Raio e Ímãs) e aerodinâmicos (Fator $K$) diretamente pelo navegador, sem necessidade de recompilar o firmware.
 * **Persistência de Dados (NVS):** Salva as configurações de calibração na memória flash via biblioteca `Preferences`, preservando-as após reinicializações.
 * **Conectividade Integrada:** Resolução mDNS (`http://Anemometro.local`) e comunicação de *heartbeat*/ping contínuo com a central de comunicação do ecossistema didático.
@@ -58,9 +63,12 @@ O princípio de funcionamento baseia-se na contagem de pulsos causados pela pass
 
 | Componente | Pino do Módulo KY-003 | Pino do ESP32 | Função |
 | :--- | :--- | :--- | :--- |
-| **Sensor Hall** | Signal (S) | **GPIO 14** | Entrada com suporte a Interrupção (`FALLING`) |
+| **Sensor Hall** | DO (Saída Digital) | **GPIO 14** | Entrada com suporte a Interrupção, usada no cálculo de período/velocidade |
+| **Sensor Hall** | AO (Saída Analógica) | **GPIO 34** | Entrada ADC1 (somente leitura), usada no gráfico de intensidade bruta |
 | **Sensor Hall** | VCC (+) | **3.3V** ou **5V** | Alimentação |
 | **Sensor Hall** | GND (-) | **GND** | Ponto de Referência Comum |
+
+> **Nota:** o limiar do pino DO é ajustado fisicamente pelo trimpot do módulo. Esse ajuste não afeta a leitura do pino AO, que permanece proporcional à intensidade real do campo magnético.
 
 ---
 
@@ -72,6 +80,7 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
 | :--- | :--- | :--- |
 | `/` | `GET` | Entrega a interface *web* gráfica (HTML5/CSS/JavaScript). |
 | `/dados` | `GET` | Retorna um JSON com as leituras atuais: `{"v": float, "w": float}`. |
+| `/intensidade` | `GET` | Retorna um *array* JSON com as $100$ últimas amostras do pino AO ($0$–$4095$), em ordem cronológica, para o gráfico de intensidade. |
 | `/status` | `GET` | Retorna o estado atual das variáveis de calibração salvas. |
 | `/set` | `GET` | Recebe parâmetros via *query params* (`?raio=X&imas=Y&fator=Z`) para atualização instantânea. |
 | `/save` | `GET` | Grava os valores atuais de calibração na memória NVS (`Preferences`). |
@@ -106,5 +115,6 @@ const char* password = "123456789";
 4. Acesse a interface pelo navegador em `http://Anemometro.local` ou pelo IP exibido no portal da Central de Comunicação.
 5. Meça fisicamente o raio do rotor (em cm) e informe no campo **Raio**, junto da **Qtd Ímãs** efetivamente instalada — parâmetros incompatíveis com a montagem real distorcem a leitura de velocidade.
 6. Gere um fluxo de ar controlado (ventilador de bancada, sopro ou deslocamento do dispositivo) e observe a velocidade $v$ (m/s) e a velocidade angular $\omega$ (rad/s) no gráfico em tempo real.
+6.1. Observe o segundo gráfico (intensidade analógica): cada passagem do ímã pelo sensor deve aparecer como um pico na curva, permitindo correlacionar visualmente o sinal bruto do transdutor com a velocidade calculada acima.
 7. Ajuste o **Fator K** comparando a leitura do dispositivo com uma referência conhecida (anemômetro comercial ou velocidade nominal do ventilador), calibrando o fator de correção aerodinâmico das pás.
 8. Clique em **Salvar** para persistir a calibração na memória flash do ESP32.

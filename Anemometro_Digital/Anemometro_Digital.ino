@@ -1,5 +1,5 @@
 // Anemometro Digital - Monitor de Velocidade do Vento (m/s e rad/s)
-// Hardware: ESP32 + Sensor Hall KY-003 ou Reed Switch KY-025
+// Hardware: ESP32 + Sensor Reed Switch KY-025
 
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
@@ -11,11 +11,14 @@
 // CONFIGURAÇÃO DE REDE
 // const char* ssid     = "Rede_Comunicacao";
 // const char* password = "123456789";
-const char* ssid     = "CLARO_6E22E7-IoT";
-const char* password = "Enzomorfo6927";
+// const char* ssid     = "CLARO_6E22E7-IoT";
+// const char* password = "Enzomorfo6927";
+const char* ssid     = "ESP IoT";
+const char* password = "123456789";
 
 // PINOS DE HARDWARE
-const int PINO_SENSOR = 14; // Entrada Digital do Sensor
+const int PINO_REED_D0 = 14; // Saída Digital (DO) do sensor — usada na interrupção de período/velocidade
+const int PINO_REED_A0 = 34; // Saída Analógica (AO) do sensor — intensidade bruta do campo magnético (ADC1, somente entrada)
 
 // VARIÁVEIS VOLÁTEIS PARA INTERRUPÇÃO (ISR)
 volatile unsigned long tempoUltimoPulso = 0;
@@ -46,6 +49,13 @@ float fatorCopo  = 2.5;  // Fator aerodinâmico K (Adimensional)
 float velocidadeVentoMs = 0.0;
 float velocidadeAngular = 0.0;
 
+// BUFFER DE INTENSIDADE ANALÓGICA DO SENSOR (gráfico "ao vivo" do pino AO, 0–4095)
+const int           BUFFER_INTENSIDADE_LEN        = 100; // amostras mantidas no buffer
+const unsigned long INTERVALO_AMOSTRA_INTENSIDADE = 5;    // ms entre amostras (buffer cobre ~500 ms)
+uint16_t      bufferIntensidade[BUFFER_INTENSIDADE_LEN];
+int           idxIntensidade                = 0;
+unsigned long tempoUltimaAmostraIntensidade = 0;
+
 // FRONT-END HTML
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML><html>
@@ -62,7 +72,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     .main-container { 
       display: grid; 
       grid-template-columns: 1.5fr 1fr; 
-      grid-template-rows: 1fr 1fr 1fr;
+      grid-template-rows: 1fr 1fr 1fr 1fr;
       gap: 20px; 
       width: 100%; height: 100%;
       max-width: 1800px; 
@@ -71,12 +81,20 @@ const char index_html[] PROGMEM = R"rawliteral(
 
     .graph-wrapper {
       grid-column: 1;
-      grid-row: 1 / 3; 
+      grid-row: 1 / 2; 
       position: relative;
       background: var(--preto1); border: 1px solid var(--cinza1); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-height: 250px;
     }
     .c-fisica  { grid-column: 2; grid-row: 1 / 2; }
     .c-calibra { grid-column: 2; grid-row: 2 / 3; }
+
+    .intensidade-wrapper {
+      grid-column: 1;
+      grid-row: 2 / 3;
+      position: relative;
+      background: var(--preto1); border: 1px solid var(--cinza1); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-height: 90px;
+    }
+    #intensidadeLabel { position: absolute; top: 10px; left: 14px; z-index: 10; font-size: 12px; letter-spacing: 1px; color: var(--cinza2); font-weight: bold; }
 
     canvas { display: block; width: 100%; flex-grow: 1; }
     #dataOverlay { position: absolute; top: 14px; right: 20px; font-size: clamp(30px, 4vh, 40px); font-weight: bold; text-shadow: 2px 2px 6px var(--preto1); z-index: 10; font-family: monospace; text-align: right; line-height: 1.1;}
@@ -102,8 +120,9 @@ const char index_html[] PROGMEM = R"rawliteral(
     @media (max-width: 768px) {
       body { padding: 10px; }
       .main-container { grid-template-columns: 1fr; grid-template-rows: auto; gap: 12px; }
-      .graph-wrapper, .c-fisica, .c-calibra { grid-column: 1; grid-row: auto; }
+      .graph-wrapper, .c-fisica, .c-calibra, .intensidade-wrapper { grid-column: 1; grid-row: auto; }
       .graph-wrapper { min-height: 250px; }
+      .intensidade-wrapper { min-height: 120px; }
     }
   </style>
 </head>
@@ -116,6 +135,10 @@ const char index_html[] PROGMEM = R"rawliteral(
         <span class="data-w">w: <span id="omegaHtml">0.0</span> rad/s</span>
       </div>
       <canvas id="plotCanvas"></canvas>
+    </div>
+    <div class="intensidade-wrapper">
+      <div id="intensidadeLabel">SENSOR (INTENSIDADE ANALÓGICA)</div>
+      <canvas id="intensidadeCanvas"></canvas>
     </div>
     <div class="card c-fisica">
       <h3>GEOMETRIA</h3>
@@ -149,17 +172,27 @@ const char index_html[] PROGMEM = R"rawliteral(
     const maxPts = 100;
     const canvas = document.getElementById('plotCanvas');
     const ctx = canvas.getContext('2d');
-    
+
     for(let i = 0; i < maxPts; i++) {
       dataVelocidade.push(0);
       dataOmega.push(0);
     }
 
+    // --- Gráfico de intensidade analógica do sensor (pino AO) ---
+    let dataIntensidade = [];
+    const maxPtsIntensidade = 300; // 300 amostras de 5 ms ≈ 1,5 s de histórico visível
+    const intensidadeCanvas = document.getElementById('intensidadeCanvas');
+    const intensidadeCtx = intensidadeCanvas.getContext('2d');
+    for (let i = 0; i < maxPtsIntensidade; i++) dataIntensidade.push(0);
+
     function resizeCanvas() {
       setTimeout(() => {
         canvas.width = canvas.parentElement.clientWidth;
         canvas.height = canvas.parentElement.clientHeight;
+        intensidadeCanvas.width = intensidadeCanvas.parentElement.clientWidth;
+        intensidadeCanvas.height = intensidadeCanvas.parentElement.clientHeight;
         drawCanvas();
+        drawIntensidadeCanvas();
       }, 50);
     }
     
@@ -219,7 +252,33 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
         drawCanvas();
       });
+
+      fetch('/intensidade').then(res => res.json()).then(arr => {
+        dataIntensidade = dataIntensidade.concat(arr);
+        if (dataIntensidade.length > maxPtsIntensidade) {
+          dataIntensidade = dataIntensidade.slice(dataIntensidade.length - maxPtsIntensidade);
+        }
+        drawIntensidadeCanvas();
+      });
     }, 500);
+
+    function drawIntensidadeCanvas() {
+      intensidadeCtx.clearRect(0, 0, intensidadeCanvas.width, intensidadeCanvas.height);
+      const escalaADC = 4095; // Resolução do ADC do ESP32 (12 bits)
+      const margem = intensidadeCanvas.height * 0.1;
+      const alturaUtil = intensidadeCanvas.height - (2 * margem);
+      const step = intensidadeCanvas.width / (maxPtsIntensidade - 1);
+
+      intensidadeCtx.strokeStyle = '#00e5ff';
+      intensidadeCtx.lineWidth = 2;
+      intensidadeCtx.beginPath();
+      dataIntensidade.forEach((v, i) => {
+        const x = i * step;
+        const y = (intensidadeCanvas.height - margem) - ((v / escalaADC) * alturaUtil);
+        if (i === 0) intensidadeCtx.moveTo(x, y); else intensidadeCtx.lineTo(x, y);
+      });
+      intensidadeCtx.stroke();
+    }
 
     function drawCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -263,11 +322,8 @@ void conectarWiFi() { // CONEXÃO WI-FI
 }
 
 void setup() { // SETUP
-  // pinMode(PINO_SENSOR, INPUT_PULLUP); // Sensor Hall 
-  // attachInterrupt(digitalPinToInterrupt(PINO_SENSOR), ISR_DetectaIma, FALLING);
-
-  pinMode(PINO_SENSOR, INPUT_PULLDOWN); // Sensor Reed
-  attachInterrupt(digitalPinToInterrupt(PINO_SENSOR), ISR_DetectaIma, RISING);
+  pinMode(PINO_REED_D0, INPUT_PULLDOWN);
+  attachInterrupt(digitalPinToInterrupt(PINO_REED_D0), ISR_DetectaIma, RISING);
 
   preferences.begin("anemo_cfg", false);
   raioRotor = preferences.getInt("raio", 10);
@@ -293,6 +349,17 @@ void setup() { // SETUP
     request->send(200, "application/json", json);
   });
 
+  server.on("/intensidade", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String json = "[";
+    for (int i = 0; i < BUFFER_INTENSIDADE_LEN; i++) {
+      int idx = (idxIntensidade + i) % BUFFER_INTENSIDADE_LEN; // reordena do mais antigo para o mais recente
+      json += String(bufferIntensidade[idx]);
+      if (i < BUFFER_INTENSIDADE_LEN - 1) json += ",";
+    }
+    json += "]";
+    request->send(200, "application/json", json);
+  });
+
   server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request) {
     if (request->hasParam("raio"))  raioRotor = request->getParam("raio")->value().toInt();
     if (request->hasParam("imas"))  numImas   = request->getParam("imas")->value().toInt();
@@ -312,7 +379,14 @@ void setup() { // SETUP
 
 void loop() { // LOOP PRINCIPAL
   unsigned long agora = millis();
-  
+
+  // Amostragem da intensidade analógica (AO) do sensor para o gráfico "ao vivo" (buffer circular)
+  if (agora - tempoUltimaAmostraIntensidade >= INTERVALO_AMOSTRA_INTENSIDADE) {
+    tempoUltimaAmostraIntensidade = agora;
+    bufferIntensidade[idxIntensidade] = analogRead(PINO_REED_A0);
+    idxIntensidade = (idxIntensidade + 1) % BUFFER_INTENSIDADE_LEN;
+  }
+
   // Cálculo da Física
   if (novoPulso) {
     noInterrupts();
