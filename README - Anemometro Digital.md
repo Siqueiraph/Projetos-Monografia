@@ -2,7 +2,7 @@
 
 Módulo experimental de automação e aquisição de dados do ecossistema didático de Física baseado no microcontrolador **ESP32** e em um **sensor magnético** que detecta a passagem de ímãs fixados a um rotor. O sistema captura os pulsos gerados pela rotação, calcula grandezas cinemáticas em tempo real e disponibiliza uma interface *web* interativa para calibração de parâmetros geométricos/aerodinâmicos e visualização gráfica.
 
-O projeto é distribuído em **duas versões de firmware**, uma para cada sensor: **Efeito Hall (KY-003)** e **Reed Switch (KY-025)**. A física, a calibração e a interface de velocidade são idênticas nas duas; a versão Reed acrescenta a leitura da saída analógica do módulo e um segundo gráfico com o sinal bruto do sensor.
+O projeto é distribuído em **duas versões de firmware**, uma para cada sensor: **Efeito Hall (KY-003)** e **Reed Switch (KY-025)**. A física e a calibração são idênticas nas duas, e ambas usam apenas o sinal digital do sensor; a versão Reed acrescenta um filtro contra o repique do contato mecânico, o cálculo da velocidade por média em janela de tempo e um gráfico com grade, congelamento (*hold*) e cursor de leitura.
 
 ---
 
@@ -24,17 +24,18 @@ Cada versão fica em sua própria pasta de *sketch*. Grave no ESP32 **apenas uma
 | | **Versão Hall** | **Versão Reed** |
 | :--- | :--- | :--- |
 | **Sketch** | `Anemometro_Digital_Hall/Anemometro_Digital_Hall.ino` | `Anemometro_Digital_Reed/Anemometro_Digital_Reed.ino` |
-| **Sensor** | Efeito Hall KY-003 (3 pinos: S, VCC, GND) | Reed Switch KY-025 (4 pinos: AO, G, +, DO) |
+| **Sensor** | Efeito Hall KY-003 (3 pinos: S, VCC, GND) | Reed Switch KY-025 (4 pinos: AO, G, +, DO — o pino AO não é utilizado) |
 | **Princípio de detecção** | Semicondutor: o campo magnético comuta um transistor interno, sem partes móveis | Eletromecânico: o campo magnético fecha um contato de lâminas metálicas |
-| **Sinal digital** | GPIO 14, `INPUT_PULLUP`, interrupção em `FALLING` | GPIO 14, `INPUT_PULLDOWN`, interrupção em `RISING` |
-| **Sinal analógico** | Não disponível no módulo | GPIO 34 (ADC1), amostrado a cada $5\text{ ms}$ |
-| **Gráficos na interface** | Velocidade ($v$ e $\omega$) | Velocidade ($v$ e $\omega$) + sinal analógico do sensor |
-| **Rota `/intensidade`** | Não | Sim |
+| **Sinal digital** | GPIO 14, `INPUT_PULLUP`, interrupção em `FALLING` | GPIO 14, `INPUT_PULLDOWN`, interrupção em `CHANGE` (o pulso é contado na borda de subida) |
+| **Filtro de pulsos** | *Debounce* de $15\text{ ms}$ | *Debounce* de $15\text{ ms}$ + largura mínima de $1\text{ ms}$ contra repique do contato |
+| **Cálculo da velocidade** | A cada pulso, a partir do último intervalo $\Delta t$ | A cada $1\text{ s}$, a partir do intervalo médio de todos os pulsos da janela |
+| **Resolução de tempo** | $1\text{ ms}$ (`millis`) | $1\text{ µs}$ (`micros`) |
+| **Gráfico** | Curvas de $v$ e $\omega$ | Curvas de $v$ e $\omega$ com grade (tempo e velocidade), botão **Hold** e cursor de leitura |
 | **Intervalo do *ping* à Central** | $5\text{ s}$ | $30\text{ s}$ |
 
 **Qual escolher:**
-* **Hall** — versão base, mais simples de montar e de explicar. Indicada quando o objetivo é apenas medir a velocidade do vento.
-* **Reed** — indicada quando se deseja também *mostrar o sinal do sensor* ao estudante, separando visualmente a etapa de transdução (o pulso elétrico) da etapa de cálculo (a velocidade).
+* **Hall** — versão base, com o firmware mais curto e direto de explicar. O sensor não tem partes móveis e, por isso, não sofre de repique.
+* **Reed** — indicada para atividades em que os estudantes precisam *extrair valores do gráfico* para cálculos, graças à grade, ao *hold* e ao cursor, e em que se deseja uma leitura mais estável.
 
 > **Nota:** as duas versões usam o mesmo nome mDNS (`Anemometro.local`), o mesmo identificador de *ping* (`Anemometro`) e o mesmo espaço de calibração na memória flash (`anemo_cfg`). Por isso, não devem operar simultaneamente na mesma rede; em contrapartida, a calibração salva é preservada ao trocar de uma versão para a outra no mesmo ESP32.
 
@@ -42,7 +43,7 @@ Cada versão fica em sua própria pasta de *sketch*. Grave no ESP32 **apenas uma
 
 ## 🔬 Fundamentação Física
 
-O princípio de funcionamento baseia-se na contagem de pulsos causados pela passagem de ímãs fixados ao rotor diante do sensor magnético. O firmware utiliza uma rotina de interrupção (ISR) para mensurar o intervalo de tempo $\Delta t$ (em milissegundos) entre detecções consecutivas. Esse cálculo é o mesmo nas duas versões.
+O princípio de funcionamento baseia-se na contagem de pulsos causados pela passagem de ímãs fixados ao rotor diante do sensor magnético. O firmware utiliza uma rotina de interrupção (ISR) para mensurar o intervalo de tempo $\Delta t$ (em milissegundos) entre detecções consecutivas. As equações abaixo valem para as duas versões; o que muda é a forma de obter $\Delta t$ (ver [Estabilidade da medição](#estabilidade-da-medição-somente-versão-reed)).
 
 1. **Período de Rotação ($T$):**
    O período completo para uma volta do rotor considera o tempo entre pulsos e a quantidade total de ímãs ($N$) instalados:
@@ -58,13 +59,19 @@ O princípio de funcionamento baseia-se na contagem de pulsos causados pela pass
 
 > **Nota:** Caso o sistema não detecte novos pulsos durante um intervalo superior a $3000\text{ ms}$, assume-se que o rotor parou, zerando automaticamente as variáveis $\omega$ e $v$.
 
-### Sinal analógico do sensor (somente versão Reed)
+### Estabilidade da medição (somente versão Reed)
 
-Paralelamente ao cálculo de $v$ e $\omega$, a versão Reed amostra a saída **analógica** (AO) do módulo KY-025 a cada $5\text{ ms}$, independentemente da interrupção, e a exibe em um segundo gráfico. Isso evidencia ao estudante a etapa de transdução (o fenômeno magnético convertido em um sinal elétrico) separadamente da etapa de cálculo (o sinal digital convertido em grandezas físicas).
+Na versão Hall, $\Delta t$ é o intervalo entre os dois últimos pulsos, de modo que qualquer irregularidade em um único pulso aparece diretamente na leitura. A versão Reed adota duas medidas para estabilizá-la:
 
-> **Nota sobre DO vs. AO:** o módulo KY-025 expõe duas saídas simultâneas. A saída digital (DO), usada na interrupção para medir $\Delta t$, passa por um comparador interno ao módulo, cujo limiar é ajustado fisicamente por um trimpot. A saída analógica (AO) não passa por esse comparador e entrega a tensão bruta presente no contato do sensor.
+1. **Média em janela de tempo.** A interrupção apenas conta os pulsos e registra o instante do último. A cada janela de $1\text{ s}$, o firmware divide o tempo decorrido entre o último pulso da janela anterior e o último pulso da janela atual ($\Delta t_{\text{janela}}$) pelo número de pulsos ocorridos nesse trecho ($n$):
+   $$\Delta t = \frac{\Delta t_{\text{janela}}}{n}$$
+   Como todos os pulsos entram na conta, as flutuações individuais se compensam. Em contrapartida, a leitura passa a responder a variações de vento com atraso de até $1\text{ s}$.
 
-> **Nota sobre a forma do sinal:** o *reed switch* é um contato que abre ou fecha, de modo que a tensão em AO alterna essencialmente entre dois níveis a cada passagem do ímã, em vez de variar de forma graduada com a intensidade do campo. O gráfico mostra, portanto, a largura e o espaçamento dos pulsos e eventuais oscilações do contato mecânico (*bounce*) — o que ilustra bem a necessidade do *debouncing* aplicado na interrupção.
+2. **Filtro de repique (*bounce*).** O *reed switch* é um contato mecânico: ao fechar e ao abrir, as lâminas oscilam por uma fração de milissegundo e podem gerar bordas espúrias. O firmware observa as duas bordas do sinal e só aceita uma borda de subida se o nível baixo que a antecedeu durou pelo menos $1\text{ ms}$, além do *debounce* de $15\text{ ms}$ entre pulsos válidos.
+
+> **Nota:** a janela de média e os limites do filtro são constantes no início do *sketch* (`JANELA_MEDIA_MS`, `LARGURA_MIN_US` e `DEBOUNCE_US`). Aumentar a janela suaviza ainda mais a curva, ao custo de uma resposta mais lenta.
+
+> **Nota:** parte da oscilação observada no gráfico é real — o vento de um ventilador ou de um sopro é turbulento, e o rotor acelera e desacelera de fato. A média reduz o ruído de medição, não a variação física do escoamento.
 
 ---
 
@@ -73,13 +80,16 @@ Paralelamente ao cálculo de $v$ e $\omega$, a versão Reed amostra a saída **a
 ### Comuns às duas versões
 * **Amostragem Baseada em Interrupção:** Leitura precisa de tempo de pulso via ISR com *debouncing* por software ($15\text{ ms}$) para atenuar ruídos mecânicos/magnéticos.
 * **Interface Web Responsiva Integrada:** Servidor *web* assíncrono embarcado em HTML/CSS/JS.
-* **Gráfico Dinâmico em Tempo Real:** Renderização por `HTML5 Canvas` que exibe a velocidade do vento $v$ ($\text{m/s}$) e a velocidade angular $\omega$ ($\text{rad/s}$) em um histórico contínuo de $100$ pontos, atualizado a cada $500\text{ ms}$.
+* **Gráfico Dinâmico em Tempo Real:** Renderização por `HTML5 Canvas` que exibe a velocidade do vento $v$ ($\text{m/s}$) e a velocidade angular $\omega$ ($\text{rad/s}$) em um histórico contínuo de cerca de $50\text{ s}$, atualizado a cada $500\text{ ms}$.
 * **Calibração Dinâmica:** Ajuste dos parâmetros geométricos (Raio e Ímãs) e aerodinâmicos (Fator $K$) diretamente pelo navegador, sem necessidade de recompilar o firmware.
 * **Persistência de Dados (NVS):** Salva as configurações de calibração na memória flash via biblioteca `Preferences`, preservando-as após reinicializações.
 * **Conectividade Integrada:** Resolução mDNS (`http://Anemometro.local`) e comunicação de *heartbeat*/ping periódico com a central de comunicação do ecossistema didático.
 
 ### Exclusivo da versão Reed
-* **Gráfico do Sinal Analógico do Sensor:** Segundo `HTML5 Canvas`, posicionado logo abaixo do primeiro, que exibe a leitura da saída AO ($0$–$4095$, resolução ADC de 12 bits). O firmware mantém um buffer circular com as $100$ amostras mais recentes (cerca de $500\text{ ms}$), e a interface acumula as leituras recebidas em um histórico visível de $300$ pontos (cerca de $1{,}5\text{ s}$).
+* **Medição Estabilizada:** Velocidade calculada pela média dos pulsos em janelas de $1\text{ s}$, com filtro de repique do contato e tempos medidos em microssegundos.
+* **Grade com Escalas:** Linhas horizontais com a escala de velocidade (os mesmos valores numéricos valem para $v$ em $\text{m/s}$ e $\omega$ em $\text{rad/s}$, com divisões ajustadas automaticamente) e linhas verticais com a escala de tempo, em segundos antes da última leitura.
+* **Botão Hold:** Congela o gráfico e os valores exibidos para que possam ser lidos e anotados; **Retomar** volta à aquisição. O trecho decorrido durante a pausa não é registrado.
+* **Cursor de Leitura:** Ao passar o mouse (ou tocar) sobre o gráfico, uma linha vertical marca o ponto mais próximo e exibe seu instante $t$, $v$ e $\omega$ — o que permite, por exemplo, obter $\Delta v / \Delta t$ entre dois instantes.
 
 ---
 
@@ -109,28 +119,29 @@ Paralelamente ao cálculo de $v$ e $\omega$, a versão Reed amostra a saída **a
 | Componente | Pino do Módulo KY-025 | Pino do ESP32 | Função |
 | :--- | :--- | :--- | :--- |
 | **Sensor Reed** | DO (Saída Digital) | **GPIO 14** | Entrada com suporte a Interrupção, usada no cálculo de período/velocidade |
-| **Sensor Reed** | AO (Saída Analógica) | **GPIO 34** | Entrada ADC1 (somente leitura), usada no gráfico do sinal do sensor |
+| **Sensor Reed** | AO (Saída Analógica) | — | Não conectado |
 | **Sensor Reed** | + (VCC) | **3.3V** | Alimentação |
 | **Sensor Reed** | G (GND) | **GND** | Ponto de Referência Comum |
 
-> **Nota:** nesta versão, alimente o módulo em **3.3V**. Como a saída AO é ligada diretamente ao conversor analógico-digital do ESP32, alimentar o módulo em 5V aplicaria ao GPIO 34 uma tensão acima do limite suportado.
+> **Nota:** alimente o módulo em **3.3V**. O nível alto da saída DO acompanha a tensão de alimentação do módulo, e os pinos do ESP32 não toleram 5V.
 
-> **Nota:** o limiar do pino DO é ajustado fisicamente pelo trimpot do módulo; esse ajuste não afeta a leitura do pino AO. O firmware usa `INPUT_PULLDOWN` e interrupção na borda de subida (`RISING`).
+> **Nota:** o limiar do pino DO é ajustado fisicamente pelo trimpot do módulo. O firmware usa `INPUT_PULLDOWN` e interrupção nas duas bordas (`CHANGE`), contando o pulso na borda de subida.
 
 ---
 
 ## 🌐 Arquitetura do Código e Endpoints
 
-O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as seguintes rotas:
+O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as seguintes rotas, iguais nas duas versões:
 
-| Rota HTTP | Método | Versão | Descrição |
-| :--- | :--- | :--- | :--- |
-| `/` | `GET` | Hall e Reed | Entrega a interface *web* gráfica (HTML5/CSS/JavaScript). |
-| `/dados` | `GET` | Hall e Reed | Retorna um JSON com as leituras atuais: `{"v": float, "w": float}`. |
-| `/status` | `GET` | Hall e Reed | Retorna o estado atual das variáveis de calibração salvas. |
-| `/set` | `GET` | Hall e Reed | Recebe parâmetros via *query params* (`?raio=X&imas=Y&fator=Z`) para atualização instantânea. |
-| `/save` | `GET` | Hall e Reed | Grava os valores atuais de calibração na memória NVS (`Preferences`). |
-| `/intensidade` | `GET` | Somente Reed | Retorna um *array* JSON com as $100$ últimas amostras do pino AO ($0$–$4095$), em ordem cronológica, para o gráfico do sinal do sensor. |
+| Rota HTTP | Método | Descrição |
+| :--- | :--- | :--- |
+| `/` | `GET` | Entrega a interface *web* gráfica (HTML5/CSS/JavaScript). |
+| `/dados` | `GET` | Retorna um JSON com as leituras atuais: `{"v": float, "w": float}`. |
+| `/status` | `GET` | Retorna o estado atual das variáveis de calibração salvas. |
+| `/set` | `GET` | Recebe parâmetros via *query params* (`?raio=X&imas=Y&fator=Z`) para atualização instantânea. |
+| `/save` | `GET` | Grava os valores atuais de calibração na memória NVS (`Preferences`). |
+
+Na versão Reed, a grade, o *hold* e o cursor de leitura são implementados inteiramente no navegador, sobre os dados da rota `/dados`.
 
 ---
 
@@ -167,6 +178,6 @@ const char* password = "123456789";
 4. Acesse a interface pelo navegador em `http://Anemometro.local` ou pelo IP exibido no portal da Central de Comunicação.
 5. Meça fisicamente o raio do rotor (em cm) e informe no campo **Raio**, junto da **Qtd Ímãs** efetivamente instalada — parâmetros incompatíveis com a montagem real distorcem a leitura de velocidade.
 6. Gere um fluxo de ar controlado (ventilador de bancada, sopro ou deslocamento do dispositivo) e observe a velocidade $v$ (m/s) e a velocidade angular $\omega$ (rad/s) no gráfico em tempo real.
-7. **(Somente versão Reed)** Observe o segundo gráfico: cada passagem do ímã pelo sensor aparece como um pulso na curva, e o espaçamento entre pulsos diminui à medida que o rotor acelera — o que permite correlacionar visualmente o sinal bruto do transdutor com a velocidade calculada acima. Se os pulsos não aparecerem no gráfico de velocidade, ajuste o trimpot do módulo.
+7. **(Somente versão Reed)** Para extrair valores, clique em **Hold** para congelar o gráfico e passe o mouse (ou toque) sobre a curva: o cursor exibe o instante $t$ e os valores de $v$ e $\omega$ do ponto selecionado, e a grade permite estimar intervalos de tempo e de velocidade. Clique em **Retomar** para voltar à aquisição. Se nenhuma velocidade for registrada com o rotor girando, ajuste o trimpot do módulo.
 8. Ajuste o **Fator K** comparando a leitura do dispositivo com uma referência conhecida (anemômetro comercial ou velocidade nominal do ventilador), calibrando o fator de correção aerodinâmico das pás.
 9. Clique em **Salvar** para persistir a calibração na memória flash do ESP32.
