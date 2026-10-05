@@ -94,3 +94,17 @@ No código-fonte, ajuste as credenciais do seu Ponto de Acesso Central, se neces
 ```cpp
 const char* ssid     = "Rede_Comunicacao";
 const char* password = "123456789";
+```
+
+---
+
+## 🚀 Como Utilizar
+
+1. Monte o circuito conforme a tabela de pinagem e acople o sensor à base do rotor, alinhado à trajetória dos ímãs.
+2. Imprima em 3D (ou construa artesanalmente) o rotor com o número de pás/conchas e o raio desejados, posicionando o(s) ímã(s) de neodímio no alojamento previsto.
+3. Compile e carregue o firmware no ESP32 pela Arduino IDE, ajustando previamente as credenciais de rede.
+4. Acesse a interface pelo navegador em `http://Anemometro.local` ou pelo IP exibido no portal da Central de Comunicação.
+5. Meça fisicamente o raio do rotor (em cm) e informe no campo **Raio**, junto da **Qtd Ímãs** efetivamente instalada — parâmetros incompatíveis com a montagem real distorcem a leitura de velocidade.
+6. Gere um fluxo de ar controlado (ventilador de bancada, sopro ou deslocamento do dispositivo) e observe a velocidade $v$ (m/s) e a velocidade angular $\omega$ (rad/s) no gráfico em tempo real.
+7. Ajuste o **Fator K** comparando a leitura do dispositivo com uma referência conhecida (anemômetro comercial ou velocidade nominal do ventilador), calibrando o fator de correção aerodinâmico das pás.
+8. Clique em **Salvar** para persistir a calibração na memória flash do ESP32.

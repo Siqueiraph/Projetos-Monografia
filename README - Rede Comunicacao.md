@@ -82,3 +82,26 @@ As credenciais do Ponto de Acesso criado pelo ESP32 vêm configuradas como padr�
 ```cpp
 const char* ssid     = "Rede_Comunicacao";
 const char* password = "123456789";
+```
+
+---
+
+## 📡 Protocolo de Integração dos Subprojetos
+
+Qualquer novo módulo que deseje integrar-se ao portal da Central de Comunicação deve seguir um contrato simples de três etapas:
+
+1. **Conexão à Rede:** o subprojeto conecta-se em modo estação (`WIFI_STA`) à rede Wi-Fi gerada pela Central (`ssid`/`password` configurados), recebendo um IP dinâmico via DHCP.
+2. **Heartbeat Periódico:** o firmware do subprojeto realiza requisições `GET` periódicas (tipicamente a cada $5$–$30\text{ s}$) para `http://192.168.4.1/ping?nome=<NOME_DO_PROJETO>`. O parâmetro `nome` deve corresponder **exatamente** a uma das entradas cadastradas no vetor `listaProjetos[]` do firmware central — é esse nome que determina em qual posição do portal e do display OLED o status do módulo será exibido.
+3. **Janela de Atividade:** a cada *ping* recebido, a Central grava o IP de origem e a marca de tempo (`lastSeen`). Se nenhum *ping* for recebido por mais de $15\text{ s}$, o módulo é automaticamente marcado como inativo tanto no display OLED quanto no portal *web*.
+
+> **Nota de implementação:** o vetor `listaProjetos[]` atualmente ativo no código-fonte está configurado com nomes de teste de bancada (`"Anemometro A/B/C/D"`). A lista de produção do ecossistema — compatível com os quatro módulos didáticos (Anemômetro, Controle Musical, Irrigação Automática e Balança Inercial) — está preservada em comentário logo acima e deve ser restaurada antes de operar a rede com os quatro subprojetos simultaneamente:
+> ```cpp
+> Projeto listaProjetos[4] = {
+>   {"Irrigacao",   "0.0.0.0", 0, false},
+>   {"Musical",     "0.0.0.0", 0, false},
+>   {"Anemometro",  "0.0.0.0", 0, false},
+>   {"Balanca",     "0.0.0.0", 0, false}
+> };
+> ```
+
+Dessa forma, basta que o firmware de cada subprojeto envie o `nome` correspondente (`Irrigacao`, `Musical`, `Anemometro` ou `Balanca`) para que seu botão apareça automaticamente, com link direto, no portal unificado.
