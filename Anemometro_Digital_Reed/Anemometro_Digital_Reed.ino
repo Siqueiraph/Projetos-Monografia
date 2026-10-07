@@ -1,5 +1,5 @@
 // Anemometro Digital - Monitor de Velocidade do Vento (m/s e rad/s)
-// Hardware: ESP32 + Sensor Reed Switch KY-025
+// Hardware: ESP32 + Sensor Reed Switch KY-025 ou Sensor Hall KY-003
 
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
@@ -11,13 +11,12 @@
 // CONFIGURAÇÃO DE REDE
 // const char* ssid     = "Rede_Comunicacao";
 // const char* password = "123456789";
-// const char* ssid     = "CLARO_6E22E7-IoT";
-// const char* password = "Enzomorfo6927";
 const char* ssid     = "ESP IoT";
 const char* password = "123456789";
 
 // PINOS DE HARDWARE
-const int PINO_REED_D0 = 14; // Saída Digital (DO) do sensor — usada na interrupção de período/velocidade
+const bool SENSOR_HALL = false; // true = Hall KY-003 (pino S) | false = Reed KY-025 (pino DO)
+const int  PINO_SENSOR = 14;    // Saída digital do sensor; Ambos usam GPIO14 no ESP32
 
 // PARÂMETROS DE MEDIÇÃO
 const unsigned long DEBOUNCE_US       = 15000; // Tempo mínimo entre dois pulsos válidos (15 ms)
@@ -33,7 +32,7 @@ volatile unsigned long contadorPulsos     = 0; // Total de pulsos válidos desde
 // Função de Interrupção Acionada pelo Sensor (bordas de subida e descida)
 void IRAM_ATTR ISR_DetectaIma() {
   unsigned long agora = micros();
-  if (digitalRead(PINO_REED_D0) == LOW) {
+  if (digitalRead(PINO_SENSOR) == LOW) {
     tempoUltimaDescida = agora;
     return;
   }
@@ -145,7 +144,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       <div class="control-row">
         <label>Qtd Ímãs</label>
         <button class="step-btn" onclick="stepValue('imas', -1)">-</button>
-        <input type="number" min="1" max="12" id="imas" onchange="sendData()">
+        <input type="number" min="1" max="3" id="imas" onchange="sendData()">
         <button class="step-btn" onclick="stepValue('imas', 1)">+</button>
       </div>
     </div>
@@ -163,7 +162,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   <script>
     const JANELA_S = 50;                              // Janela de tempo visível no gráfico (s)
     const DIVISOES_Y = 5;                             // Divisões horizontais da grade (iguais nos dois eixos verticais)
-    const ESCALA_V = { piso: 5,  teto: 50 };          // Limites do topo do eixo de velocidade tangencial (m/s)
+    const ESCALA_V = { piso: 5,  teto: 50 };          // Limites do topo do eixo de velocidade do vento (m/s)
     const ESCALA_W = { piso: 25, teto: 250 };         // Limites do topo do eixo de velocidade angular (rad/s)
     const SEP_DECIMAL = '.';                          // Separador decimal usado em toda a interface
     let amostras = [];                                // Histórico: { t (s), v (m/s), w (rad/s) }
@@ -248,12 +247,13 @@ const char index_html[] PROGMEM = R"rawliteral(
       });
     }
 
-    // Congela/retoma o gráfico para que os valores possam ser lidos com calma
+    // Congela o gráfico para que os valores possam ser lidos com calma; ao retomar, o histórico é apagado
     function toggleHold() {
       emHold = !emHold;
       let btn = document.getElementById('btnHold');
       btn.innerText = emHold ? "Retomar" : "Hold";
       btn.classList.toggle('btn-hold', emHold);
+      if (!emHold) { amostras = []; drawCanvas(); }
     }
 
     // Cursor de leitura: acompanha o mouse/toque e mostra os valores do ponto mais próximo
@@ -343,7 +343,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       ctx.fillText('Tempo passado [s]', (x0 + x1) / 2, H - 7);
       ctx.textBaseline = 'top';
       ctx.save(); ctx.translate(10, (y0 + y1) / 2); ctx.rotate(-Math.PI / 2);
-      ctx.fillStyle = COR_V; ctx.fillText('Velocidade Tangencial [m/s]', 0, 0);
+      ctx.fillStyle = COR_V; ctx.fillText('Velocidade do Vento [m/s]', 0, 0);
       ctx.restore();
       ctx.save(); ctx.translate(W - 10, (y0 + y1) / 2); ctx.rotate(Math.PI / 2);
       ctx.fillStyle = COR_W; ctx.fillText('Velocidade Angular [rad/s]', 0, 0);
@@ -362,7 +362,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       });
       ctx.stroke();
 
-      // Desenha a curva da Velocidade Tangencial (m/s) - Laranja
+      // Desenha a curva da Velocidade do Vento (m/s) - Laranja
       ctx.fillStyle = 'rgba(255, 153, 0, 0.15)'; ctx.beginPath();
       ctx.moveTo(px(amostras[0].t), y1);
       amostras.forEach(a => ctx.lineTo(px(a.t), pyV(a.v)));
@@ -411,8 +411,9 @@ void conectarWiFi() { // CONEXÃO WI-FI
 }
 
 void setup() { // SETUP
-  pinMode(PINO_REED_D0, INPUT_PULLDOWN);
-  attachInterrupt(digitalPinToInterrupt(PINO_REED_D0), ISR_DetectaIma, CHANGE);
+  // O KY-003 só puxa a saída para baixo e precisa de pull-up; o KY-025 mantém a configuração original
+  pinMode(PINO_SENSOR, SENSOR_HALL ? INPUT_PULLUP : INPUT_PULLDOWN);
+  attachInterrupt(digitalPinToInterrupt(PINO_SENSOR), ISR_DetectaIma, CHANGE);
 
   preferences.begin("anemo_cfg", false);
   raioRotor = preferences.getInt("raio", 10);
@@ -422,7 +423,7 @@ void setup() { // SETUP
   conectarWiFi();
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send_P(200, "text/html", index_html);
+    request->send(200, "text/html", index_html);
   });
 
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
