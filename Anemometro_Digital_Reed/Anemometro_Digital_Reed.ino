@@ -91,11 +91,11 @@ const char index_html[] PROGMEM = R"rawliteral(
     .c-calibra { grid-column: 2; grid-row: 2 / 3; }
 
     canvas { display: block; width: 100%; flex-grow: 1; touch-action: pan-y; cursor: crosshair; }
-    #dataOverlay { position: absolute; top: 14px; right: 20px; font-size: clamp(30px, 4vh, 40px); font-weight: bold; text-shadow: 2px 2px 6px var(--preto1); z-index: 10; font-family: monospace; text-align: right; line-height: 1.1; pointer-events: none;}
+    #dataOverlay { position: absolute; top: 14px; right: 78px; font-size: clamp(30px, 4vh, 40px); font-weight: bold; text-shadow: 2px 2px 6px var(--preto1); z-index: 10; font-family: monospace; text-align: right; line-height: 1.1; pointer-events: none;}
     .data-v { color: var(--destaque); }
     .data-w { color: var(--cinza2); }
 
-    .top-btns { position: absolute; top: 14px; left: 60px; z-index: 10; display: flex; gap: 8px; }
+    .top-btns { position: absolute; top: 21px; left: 72px; z-index: 10; display: flex; gap: 8px; }
     .top-btn { padding: 10px 16px; font-size: 14px; font-weight: bold; background-color: var(--preto2); color: var(--branco); border: 1px solid var(--cinza1); border-radius: 6px; cursor: pointer; transition: 0.2s; }
     .top-btn:hover { filter: brightness(1.4); }
     .btn-saved { background-color: #4CAF50 !important; border-color: #4CAF50 !important; color: var(--preto1) !important; }
@@ -109,8 +109,8 @@ const char index_html[] PROGMEM = R"rawliteral(
     .step-btn { background-color: var(--preto2); color: var(--branco); border: 1px solid var(--cinza1); border-radius: 6px; width: 36px; height: 36px; font-size: 18px; font-weight: bold; cursor: pointer; flex-shrink: 0; transition: 0.2s; }
     .step-btn:hover { filter: brightness(1.4); }
 
-    input[type=number] { flex: 1; background: var(--preto2); color: var(--cinza2); border: 1px solid var(--cinza1); border-radius: 6px; padding: 8px; font-family: monospace; font-size: clamp(14px, 3vh, 18px); font-weight: bold; text-align: center; min-width: 0; }
-    input[type=number]:focus { outline: none; filter: brightness(1.3); }
+    .control-row input { flex: 1; background: var(--preto2); color: var(--cinza2); border: 1px solid var(--cinza1); border-radius: 6px; padding: 8px; font-family: monospace; font-size: clamp(14px, 3vh, 18px); font-weight: bold; text-align: center; min-width: 0; }
+    .control-row input:focus { outline: none; filter: brightness(1.3); }
     input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
 
     @media (max-width: 768px) {
@@ -139,7 +139,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       <div class="control-row">
         <label>Raio (cm)</label>
         <button class="step-btn" onclick="stepValue('raio', -1)">-</button>
-        <input type="number" min="1" max="100" id="raio" onchange="sendData()">
+        <input type="text" inputmode="decimal" min="1" max="100" id="raio" onchange="sendData()">
         <button class="step-btn" onclick="stepValue('raio', 1)">+</button>
       </div>
       <div class="control-row">
@@ -154,7 +154,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       <div class="control-row">
         <label>Fator K</label>
         <button class="step-btn" onclick="stepFloat('fator', -0.1)">-</button>
-        <input type="number" step="0.1" min="1.0" max="5.0" id="fator" onchange="sendData()">
+        <input type="text" inputmode="decimal" min="1.0" max="5.0" id="fator" onchange="sendData()">
         <button class="step-btn" onclick="stepFloat('fator', 0.1)">+</button>
       </div>
     </div>
@@ -162,12 +162,20 @@ const char index_html[] PROGMEM = R"rawliteral(
 
   <script>
     const JANELA_S = 50;                              // Janela de tempo visível no gráfico (s)
-    const MARGEM = { l: 48, r: 14, t: 16, b: 26 };    // Espaço reservado para os rótulos dos eixos (px)
+    const DIVISOES_Y = 5;                             // Divisões horizontais da grade (iguais nos dois eixos verticais)
+    const ESCALA_V = { piso: 5,  teto: 50 };          // Limites do topo do eixo de velocidade tangencial (m/s)
+    const ESCALA_W = { piso: 25, teto: 250 };         // Limites do topo do eixo de velocidade angular (rad/s)
+    const SEP_DECIMAL = '.';                          // Separador decimal usado em toda a interface
     let amostras = [];                                // Histórico: { t (s), v (m/s), w (rad/s) }
     let emHold = false;                               // Gráfico congelado para leitura
     let cursorX = null;                               // Posição do cursor de leitura (px do canvas)
     const canvas = document.getElementById('plotCanvas');
     const ctx = canvas.getContext('2d');
+
+    // Formata um número com o separador decimal da interface
+    function fmt(val, casas) { return val.toFixed(casas).replace('.', SEP_DECIMAL); }
+    // Interpreta um número digitado com vírgula ou com ponto
+    function lerNumero(texto) { return parseFloat(String(texto).replace(',', '.')); }
 
     function resizeCanvas() {
       setTimeout(() => {
@@ -177,36 +185,57 @@ const char index_html[] PROGMEM = R"rawliteral(
       }, 50);
     }
 
+    // Escreve um valor no campo e o registra como último valor válido
+    function setCampo(id, val, casas) {
+      let el = document.getElementById(id);
+      el.dataset.ultimo = val;
+      el.value = casas > 0 ? fmt(val, casas) : String(val);
+    }
+
+    // Valida o campo (valor inválido volta ao último aceito; fora da faixa é limitado) e devolve o texto a enviar ao ESP32
+    function validarCampo(id, casas) {
+      let el = document.getElementById(id);
+      let min = parseFloat(el.getAttribute('min')), max = parseFloat(el.getAttribute('max'));
+      let val = lerNumero(el.value);
+      if (isNaN(val)) val = parseFloat(el.dataset.ultimo);
+      if (isNaN(val)) val = min;
+      if (casas === 0) val = Math.round(val);
+      val = Math.max(min, Math.min(max, val));
+      val = parseFloat(val.toFixed(casas));
+      setCampo(id, val, casas);
+      return val.toFixed(casas);
+    }
+
     window.addEventListener('resize', resizeCanvas);
     window.onload = function() {
       resizeCanvas();
       fetch('/status').then(res => res.json()).then(data => {
-        if(document.getElementById('raio')) document.getElementById('raio').value = data.raioRotor;
-        if(document.getElementById('imas')) document.getElementById('imas').value = data.numImas;
-        if(document.getElementById('fator')) document.getElementById('fator').value = data.fatorCopo.toFixed(1);
+        setCampo('raio', data.raioRotor, 0);
+        setCampo('imas', data.numImas, 0);
+        setCampo('fator', data.fatorCopo, 1);
       });
     };
 
     function stepValue(id, delta) {
       let el = document.getElementById(id);
-      let val = (parseInt(el.value) || 0) + delta;
-      val = Math.max(parseInt(el.min), Math.min(parseInt(el.max), val));
-      el.value = val;
+      let val = lerNumero(el.value);
+      if (isNaN(val)) val = parseFloat(el.dataset.ultimo) || 0;
+      el.value = String(Math.round(val) + delta);
       sendData();
     }
 
     function stepFloat(id, delta) {
       let el = document.getElementById(id);
-      let val = (parseFloat(el.value) || 0.0) + delta;
-      val = Math.max(parseFloat(el.min), Math.min(parseFloat(el.max), val));
-      el.value = val.toFixed(1);
+      let val = lerNumero(el.value);
+      if (isNaN(val)) val = parseFloat(el.dataset.ultimo) || 0.0;
+      el.value = (val + delta).toFixed(1);
       sendData();
     }
 
     function sendData() {
-      let r = document.getElementById('raio').value;
-      let i = document.getElementById('imas').value;
-      let f = document.getElementById('fator').value;
+      let r = validarCampo('raio', 0);
+      let i = validarCampo('imas', 0);
+      let f = validarCampo('fator', 1);
       fetch(`/set?raio=${r}&imas=${i}&fator=${f}`);
     }
 
@@ -243,8 +272,8 @@ const char index_html[] PROGMEM = R"rawliteral(
       if (emHold) return;
       fetch('/dados').then(res => res.json()).then(data => {
         if (emHold) return;
-        document.getElementById('velHtml').innerText = data.v.toFixed(1);
-        document.getElementById('omegaHtml').innerText = data.w.toFixed(2);
+        document.getElementById('velHtml').innerText = fmt(data.v, 1);
+        document.getElementById('omegaHtml').innerText = fmt(data.w, 2);
 
         let t = performance.now() / 1000;
         amostras.push({ t: t, v: data.v, w: data.w });
@@ -253,71 +282,99 @@ const char index_html[] PROGMEM = R"rawliteral(
       });
     }, 500);
 
-    // Escolhe um passo "redondo" (1, 2 ou 5 x 10^n) para as divisões da grade
-    function passoGrade(maximo, divisoes) {
-      let bruto = maximo / divisoes;
+    // Topo do eixo: menor valor "redondo" (1, 2 ou 5 x 10^n por divisão) que comporta o máximo,
+    // limitado entre o piso e o teto para que a escala não amplie nem comprima demais as curvas
+    function topoEscala(maximo, limites) {
+      if (!(maximo > 0)) return limites.piso;
+      let bruto = (maximo * 1.1) / DIVISOES_Y;
       let pot = Math.pow(10, Math.floor(Math.log10(bruto)));
       let f = bruto / pot;
-      return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pot;
+      let topo = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pot * DIVISOES_Y;
+      return Math.max(limites.piso, Math.min(limites.teto, topo));
     }
 
     function drawCanvas() {
       const W = canvas.width, H = canvas.height;
-      const x0 = MARGEM.l, x1 = W - MARGEM.r, y0 = MARGEM.t, y1 = H - MARGEM.b;
+      const fs = W < 500 ? 12 : 15;                       // Tamanho da fonte dos eixos (px)
+      const margemLateral = fs * 4 + 6;                   // Espaço para os valores e o título de cada eixo vertical
+      const x0 = margemLateral, x1 = W - margemLateral, y0 = 16, y1 = H - (fs * 3 + 8);
+      const COR_V = '#ff9900', COR_W = '#ccc', COR_T = '#aaa';
+      const fonteValores = fs + 'px monospace';
+      const fonteTitulos = 'bold ' + fs + "px 'Segoe UI', Arial, sans-serif";
       ctx.clearRect(0, 0, W, H);
       if (x1 <= x0 || y1 <= y0) return;
 
-      // Escala baseada no maior valor entre as duas curvas para mantê-las proporcionais
-      let maxGlobal = 5;
-      amostras.forEach(a => { maxGlobal = Math.max(maxGlobal, a.v, a.w); });
-      const passoY = passoGrade(maxGlobal * 1.2, 5);
-      const yMax = Math.ceil((maxGlobal * 1.2) / passoY) * passoY;
+      // Cada curva tem o próprio eixo vertical: v à esquerda (m/s) e w à direita (rad/s)
+      let maxV = 0, maxW = 0;
+      amostras.forEach(a => { maxV = Math.max(maxV, a.v); maxW = Math.max(maxW, a.w); });
+      const topoV = topoEscala(maxV, ESCALA_V);
+      const topoW = topoEscala(maxW, ESCALA_W);
       const tFim = amostras.length ? amostras[amostras.length - 1].t : 0;
-      const px = t => x1 - ((tFim - t) / JANELA_S) * (x1 - x0);
-      const py = val => y1 - (val / yMax) * (y1 - y0);
+      const px  = t => x1 - ((tFim - t) / JANELA_S) * (x1 - x0);
+      const pyV = val => y1 - (val / topoV) * (y1 - y0);
+      const pyW = val => y1 - (val / topoW) * (y1 - y0);
+      const casasV = (topoV / DIVISOES_Y) < 1 ? 1 : 0;
+      const casasW = (topoW / DIVISOES_Y) < 1 ? 1 : 0;
 
-      // Grade horizontal: escala de velocidade (m/s para v, rad/s para w)
+      // Grade horizontal com os valores dos dois eixos verticais
       ctx.setLineDash([]); ctx.lineWidth = 1; ctx.strokeStyle = '#333';
-      ctx.fillStyle = '#888'; ctx.font = '12px monospace';
-      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-      for (let val = 0; val <= yMax + passoY / 2; val += passoY) {
-        let y = Math.round(py(val)) + 0.5;
+      ctx.font = fonteValores; ctx.textBaseline = 'middle';
+      for (let i = 0; i <= DIVISOES_Y; i++) {
+        let y = Math.round(y1 - (i / DIVISOES_Y) * (y1 - y0)) + 0.5;
         ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
-        ctx.fillText(val.toFixed(passoY < 1 ? 1 : 0), x0 - 6, y);
+        ctx.fillStyle = COR_V; ctx.textAlign = 'right';
+        ctx.fillText(fmt(topoV * i / DIVISOES_Y, casasV), x0 - 6, y);
+        ctx.fillStyle = COR_W; ctx.textAlign = 'left';
+        ctx.fillText(fmt(topoW * i / DIVISOES_Y, casasW), x1 + 6, y);
       }
 
-      // Grade vertical: escala de tempo (segundos antes da última leitura)
+      // Grade vertical: tempo passado (0 = leitura mais recente, à direita)
       const passoT = (x1 - x0) < 600 ? 10 : 5;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillStyle = COR_T; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       for (let s = 0; s <= JANELA_S; s += passoT) {
         let x = Math.round(x1 - (s / JANELA_S) * (x1 - x0)) + 0.5;
         ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
-        if (s < JANELA_S) ctx.fillText(s === 0 ? '0 s' : '-' + s + ' s', Math.min(x, W - 16), y1 + 6);
+        ctx.fillText(String(s), x, y1 + 6);
       }
-      ctx.textAlign = 'left';
-      ctx.fillText('m/s | rad/s', 4, y1 + 6);
+
+      // Títulos dos três eixos
+      ctx.font = fonteTitulos;
+      ctx.fillStyle = COR_T; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('Tempo passado [s]', (x0 + x1) / 2, H - 7);
+      ctx.textBaseline = 'top';
+      ctx.save(); ctx.translate(10, (y0 + y1) / 2); ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = COR_V; ctx.fillText('Velocidade Tangencial [m/s]', 0, 0);
+      ctx.restore();
+      ctx.save(); ctx.translate(W - 10, (y0 + y1) / 2); ctx.rotate(Math.PI / 2);
+      ctx.fillStyle = COR_W; ctx.fillText('Velocidade Angular [rad/s]', 0, 0);
+      ctx.restore();
 
       if (amostras.length === 0) return;
 
+      // Curvas recortadas na área do gráfico (valores acima do teto da escala não invadem as margens)
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.clip();
+
       // Desenha a curva da Velocidade Angular (rad/s) - Cinza
-      ctx.strokeStyle = '#ccc'; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.strokeStyle = COR_W; ctx.lineWidth = 2; ctx.beginPath();
       amostras.forEach((a, i) => {
-        if (i === 0) ctx.moveTo(px(a.t), py(a.w)); else ctx.lineTo(px(a.t), py(a.w));
+        if (i === 0) ctx.moveTo(px(a.t), pyW(a.w)); else ctx.lineTo(px(a.t), pyW(a.w));
       });
       ctx.stroke();
 
-      // Desenha a curva da Velocidade do Vento (m/s) - Laranja
+      // Desenha a curva da Velocidade Tangencial (m/s) - Laranja
       ctx.fillStyle = 'rgba(255, 153, 0, 0.15)'; ctx.beginPath();
       ctx.moveTo(px(amostras[0].t), y1);
-      amostras.forEach(a => ctx.lineTo(px(a.t), py(a.v)));
+      amostras.forEach(a => ctx.lineTo(px(a.t), pyV(a.v)));
       ctx.lineTo(px(tFim), y1);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = '#ff9900'; ctx.lineWidth = 3; ctx.beginPath();
+      ctx.strokeStyle = COR_V; ctx.lineWidth = 3; ctx.beginPath();
       amostras.forEach((a, i) => {
-        if (i === 0) ctx.moveTo(px(a.t), py(a.v)); else ctx.lineTo(px(a.t), py(a.v));
+        if (i === 0) ctx.moveTo(px(a.t), pyV(a.v)); else ctx.lineTo(px(a.t), pyV(a.v));
       });
       ctx.stroke();
+      ctx.restore();
 
       // Cursor de leitura: linha vertical e valores do ponto mais próximo
       if (cursorX !== null) {
@@ -327,17 +384,17 @@ const char index_html[] PROGMEM = R"rawliteral(
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
         ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
         ctx.setLineDash([]);
-        ctx.fillStyle = '#ccc';    ctx.beginPath(); ctx.arc(x, py(sel.w), 4, 0, 2 * Math.PI); ctx.fill();
-        ctx.fillStyle = '#ff9900'; ctx.beginPath(); ctx.arc(x, py(sel.v), 4, 0, 2 * Math.PI); ctx.fill();
+        ctx.fillStyle = COR_W; ctx.beginPath(); ctx.arc(x, Math.max(y0, pyW(sel.w)), 4, 0, 2 * Math.PI); ctx.fill();
+        ctx.fillStyle = COR_V; ctx.beginPath(); ctx.arc(x, Math.max(y0, pyV(sel.v)), 4, 0, 2 * Math.PI); ctx.fill();
 
-        let texto = 't = ' + (sel.t - tFim).toFixed(1) + ' s   v = ' + sel.v.toFixed(2) + ' m/s   w = ' + sel.w.toFixed(2) + ' rad/s';
-        ctx.font = 'bold 13px monospace';
+        let texto = 't = ' + fmt(tFim - sel.t, 1) + ' s   v = ' + fmt(sel.v, 2) + ' m/s   w = ' + fmt(sel.w, 2) + ' rad/s';
+        ctx.font = 'bold ' + (fs - 1) + 'px monospace';
         let larg = ctx.measureText(texto).width + 16;
         let bx = Math.max(x0, Math.min(x1 - larg, x - larg / 2));
-        ctx.fillStyle = 'rgba(26, 26, 26, 0.92)'; ctx.fillRect(bx, y1 - 30, larg, 24);
-        ctx.strokeStyle = '#333'; ctx.strokeRect(bx + 0.5, y1 - 29.5, larg, 24);
+        ctx.fillStyle = 'rgba(26, 26, 26, 0.92)'; ctx.fillRect(bx, y1 - 32, larg, 26);
+        ctx.strokeStyle = '#333'; ctx.strokeRect(bx + 0.5, y1 - 31.5, larg, 26);
         ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        ctx.fillText(texto, bx + 8, y1 - 18);
+        ctx.fillText(texto, bx + 8, y1 - 19);
       }
     }
   </script>

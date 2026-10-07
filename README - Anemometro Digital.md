@@ -30,7 +30,7 @@ Cada versão fica em sua própria pasta de *sketch*. Grave no ESP32 **apenas uma
 | **Filtro de pulsos** | *Debounce* de $15\text{ ms}$ | *Debounce* de $15\text{ ms}$ + largura mínima de $1\text{ ms}$ contra repique do contato |
 | **Cálculo da velocidade** | A cada pulso, a partir do último intervalo $\Delta t$ | A cada $1\text{ s}$, a partir do intervalo médio de todos os pulsos da janela |
 | **Resolução de tempo** | $1\text{ ms}$ (`millis`) | $1\text{ µs}$ (`micros`) |
-| **Gráfico** | Curvas de $v$ e $\omega$ | Curvas de $v$ e $\omega$ com grade (tempo e velocidade), botão **Hold** e cursor de leitura |
+| **Gráfico** | Curvas de $v$ e $\omega$ | Curvas de $v$ e $\omega$ em três eixos com grade, escala com piso e teto, botão **Hold** e cursor de leitura |
 | **Intervalo do *ping* à Central** | $5\text{ s}$ | $30\text{ s}$ |
 
 **Qual escolher:**
@@ -87,7 +87,9 @@ Na versão Hall, $\Delta t$ é o intervalo entre os dois últimos pulsos, de mod
 
 ### Exclusivo da versão Reed
 * **Medição Estabilizada:** Velocidade calculada pela média dos pulsos em janelas de $1\text{ s}$, com filtro de repique do contato e tempos medidos em microssegundos.
-* **Grade com Escalas:** Linhas horizontais com a escala de velocidade (os mesmos valores numéricos valem para $v$ em $\text{m/s}$ e $\omega$ em $\text{rad/s}$, com divisões ajustadas automaticamente) e linhas verticais com a escala de tempo, em segundos antes da última leitura.
+* **Gráfico de Três Eixos com Grade:** Eixo horizontal **Tempo passado [s]** (0 = leitura mais recente, à direita), eixo vertical esquerdo **Velocidade Tangencial [m/s]** e eixo vertical direito **Velocidade Angular [rad/s]**. Cada curva é lida no eixo da sua cor (laranja à esquerda, cinza à direita), e as linhas da grade coincidem com as divisões dos dois eixos verticais.
+* **Escala com Piso e Teto:** Os eixos verticais sempre partem de zero, e o valor do topo se ajusta automaticamente apenas entre limites fixos — de $5$ a $50\text{ m/s}$ e de $25$ a $250\text{ rad/s}$. O piso impede que a escala amplie o gráfico quando a velocidade é baixa ou estável, o que faria pequenas flutuações parecerem maiores do que são. Os limites são as constantes `ESCALA_V` e `ESCALA_W` no código da página.
+* **Separador Decimal Uniforme:** Todos os valores da interface (leituras, eixos, cursor e campo **Fator K**) usam ponto decimal, independentemente do idioma do navegador, e o campo aceita a digitação com ponto ou com vírgula. O separador é definido pela constante `SEP_DECIMAL` no código da página.
 * **Botão Hold:** Congela o gráfico e os valores exibidos para que possam ser lidos e anotados; **Retomar** volta à aquisição. O trecho decorrido durante a pausa não é registrado.
 * **Cursor de Leitura:** Ao passar o mouse (ou tocar) sobre o gráfico, uma linha vertical marca o ponto mais próximo e exibe seu instante $t$, $v$ e $\omega$ — o que permite, por exemplo, obter $\Delta v / \Delta t$ entre dois instantes.
 
