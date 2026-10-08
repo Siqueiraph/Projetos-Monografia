@@ -276,6 +276,25 @@ void setupI2S() { // CONFIGURAÇÃO DO DRIVER I2S (DMA)
   i2s_set_pin(I2S_PORT, &pin_config);
 }
 
+// PING PARA A CENTRAL DE COMUNICAÇÃO
+const unsigned long INTERVALO_PING_MS = 5000; // A Central considera o módulo inativo após 15 s sem ping
+
+// Ping para o Módulo Central de Comunicação
+// Roda em uma tarefa própria do FreeRTOS para que a espera pela resposta não bloqueie o loop principal
+void tarefaPing(void *parametro) {
+  for (;;) {
+    if (WiFi.status() == WL_CONNECTED) {
+      HTTPClient http;
+      http.setConnectTimeout(1000);
+      http.setTimeout(1000);
+      http.begin("http://192.168.4.1/ping?nome=Musical");
+      http.GET();
+      http.end();
+    }
+    vTaskDelay(pdMS_TO_TICKS(INTERVALO_PING_MS));
+  }
+}
+
 void conectarWiFi() { // CONEXÃO WI-FI
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -340,6 +359,8 @@ void setup() { // SETUP
 
   server.addHandler(&events);
   server.begin();
+
+  xTaskCreate(tarefaPing, "ping", 8192, NULL, 1, NULL);
 }
 
 // CONTROLE DE RELÉ
@@ -424,19 +445,5 @@ void loop() { // LOOP PRINCIPAL
     events.send(jsonBuf, "plot", agora);
     tempoUltimoGrafico = agora;
     picoGrave = picoMedio = picoAgudo = 0.0f;
-  }
-
-  // --- 6. PING PARA A REDE DE COMUNICAÇÃO ---
-  static unsigned long lastPing = 0;
-  if (agora - lastPing > 30000) { // era 5000
-    lastPing = agora;
-    if (WiFi.status() == WL_CONNECTED) {
-      HTTPClient http;
-      http.setConnectTimeout(1000);
-      http.setTimeout(1000);
-      http.begin("http://192.168.4.1/ping?nome=Musical");
-      http.GET();
-      http.end();
-    }
   }
 }

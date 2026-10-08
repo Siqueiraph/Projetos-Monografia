@@ -402,6 +402,25 @@ const char index_html[] PROGMEM = R"rawliteral(
 </html>
 )rawliteral";
 
+// PING PARA A CENTRAL DE COMUNICAÇÃO
+const unsigned long INTERVALO_PING_MS = 5000; // A Central considera o módulo inativo após 15 s sem ping
+
+// Ping para o Módulo Central de Comunicação
+// Roda em uma tarefa própria do FreeRTOS para que a espera pela resposta não bloqueie o loop principal
+void tarefaPing(void *parametro) {
+  for (;;) {
+    if (WiFi.status() == WL_CONNECTED) {
+      HTTPClient http;
+      http.setConnectTimeout(1000);
+      http.setTimeout(1000);
+      http.begin("http://192.168.4.1/ping?nome=Anemometro");
+      http.GET();
+      http.end();
+    }
+    vTaskDelay(pdMS_TO_TICKS(INTERVALO_PING_MS));
+  }
+}
+
 void conectarWiFi() { // CONEXÃO WI-FI
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -454,6 +473,8 @@ void setup() { // SETUP
   });
 
   server.begin();
+
+  xTaskCreate(tarefaPing, "ping", 8192, NULL, 1, NULL);
 }
 
 void loop() { // LOOP PRINCIPAL
@@ -500,19 +521,5 @@ void loop() { // LOOP PRINCIPAL
 
     // v = w * r * K  (convertendo r de cm para metros. Removido o * 3.6 para manter em m/s)
     velocidadeVentoMs = velocidadeAngular * (raioRotor / 100.0) * fatorCopo;
-  }
-
-  // Ping para o Módulo Central de Comunicação
-  static unsigned long lastPing = 0;
-  if (agora - lastPing > 30000) { // era 5000
-    lastPing = agora;
-    if (WiFi.status() == WL_CONNECTED) {
-      HTTPClient http;
-      http.setConnectTimeout(1000);
-      http.setTimeout(1000);
-      http.begin("http://192.168.4.1/ping?nome=Anemometro");
-      http.GET();
-      http.end();
-    }
   }
 }
