@@ -120,7 +120,7 @@ Se $\Delta t$ fosse simplesmente o intervalo entre os dois últimos pulsos, qual
 | Componente | Pino do Módulo KY-003 | Pino do ESP32 | Função |
 | :--- | :--- | :--- | :--- |
 | **Sensor Hall** | S (Sinal) | **GPIO 14** | Entrada com suporte a Interrupção, usada no cálculo de período/velocidade |
-| **Sensor Hall** | VCC (+) | **3.3V** ou **5V** | Alimentação |
+| **Sensor Hall** | VCC (+) | **3.3V** | Alimentação |
 | **Sensor Hall** | GND (-) | **GND** | Ponto de Referência Comum |
 
 > **Nota:** a saída do KY-003 permanece em nível alto e vai a nível baixo quando o ímã se aproxima; por isso o firmware usa `INPUT_PULLUP`. Como a interrupção observa as duas bordas (`CHANGE`) e o pulso é contado na borda de subida, a contagem ocorre no afastamento do ímã. O sensor responde a apenas uma das polaridades do ímã — se não houver detecção, inverta a face do ímã voltada para o sensor.
@@ -136,7 +136,7 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
 | `/` | `GET` | Entrega a interface *web* gráfica (HTML5/CSS/JavaScript). |
 | `/dados` | `GET` | Retorna um JSON com as leituras atuais: `{"v": float, "w": float}`. |
 | `/status` | `GET` | Retorna o estado atual das variáveis de calibração salvas. |
-| `/set` | `GET` | Recebe parâmetros via *query params* (`?raio=X&imas=Y&fator=Z`) para atualização instantânea. |
+| `/set` | `GET` | Recebe parâmetros via *query params* (`?raio=X&imas=Y&fator=Z`) para atualização instantânea. Valores fora das faixas da interface ($1$–$100$, $1$–$3$ e $1{,}0$–$5{,}0$) são limitados. |
 | `/save` | `GET` | Grava os valores atuais de calibração na memória NVS (`Preferences`). |
 
 A grade, o *hold* e o cursor de leitura são implementados inteiramente no navegador, sobre os dados da rota `/dados`.

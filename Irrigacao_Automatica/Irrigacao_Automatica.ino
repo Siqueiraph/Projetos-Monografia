@@ -18,6 +18,10 @@ const int PINO_RELE   = 26; // Saída digital — aciona a bomba via relé
 // PARÂMETROS DE TEMPORIZAÇÃO
 const unsigned long COOLDOWN_REGA_MS = 60000UL; // 60 segundos
 
+// PARÂMETROS DE MEDIÇÃO E PROTEÇÃO
+const int AMOSTRAS_ADC         = 16; // Leituras do ADC por medida (a média atenua o ruído)
+const int MAX_REGAS_SEM_EFEITO = 3;  // Regas seguidas sem a umidade subir até bloquear a bomba (sensor solto ou fora do solo)
+
 // OBJETOS GLOBAIS
 AsyncWebServer server(80);
 Preferences preferences;
@@ -32,6 +36,8 @@ int tempoMaxRega = 10; // segundos
 bool          bombaLigada   = false;
 unsigned long inicioRega    = 0;
 unsigned long fimUltimaRega = 0;
+int           umidadeAntesRega = 0; // Umidade no início da última rega
+int           regasSemEfeito   = 0; // Regas seguidas sem a umidade subir; ao atingir o máximo, só um reinício libera a bomba
 
 // Leitura atual — atualizada no loop(), lida pelas rotas HTTP
 int umidade = 0;
@@ -199,7 +205,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
     setInterval(function() {
       fetch('/dados').then(res => res.json()).then(data => {
-        document.getElementById('humOverlay').innerText = data.umidade + "%";
+        document.getElementById('humOverlay').innerText = data.bloqueio ? "Verifique o sensor" : data.umidade + "%";
         dataUmidade.push(data.umidade);
         if(dataUmidade.length > maxPts) dataUmidade.shift();
         drawCanvas();
@@ -277,19 +283,21 @@ void setup() { // SETUP
 
   server.on("/dados", HTTP_GET, [](AsyncWebServerRequest *request) {
     String json = "{\"umidade\":"     + String(umidade) +
-                  ",\"statusBomba\":" + String(bombaLigada)  + "}";
+                  ",\"statusBomba\":" + String(bombaLigada) +
+                  ",\"bloqueio\":"    + String(regasSemEfeito >= MAX_REGAS_SEM_EFEITO) + "}";
     request->send(200, "application/json", json);
   });
 
   server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request) {
-    int novoSeco  = request->hasParam("seco")  ? request->getParam("seco")->value().toInt()  : valSeco;
-    int novoUmido = request->hasParam("umido") ? request->getParam("umido")->value().toInt() : valUmido;
+    // Mesmas faixas dos campos da página: o que chega fora delas é limitado
+    int novoSeco  = request->hasParam("seco")  ? constrain(request->getParam("seco")->value().toInt(),  0, 4095) : valSeco;
+    int novoUmido = request->hasParam("umido") ? constrain(request->getParam("umido")->value().toInt(), 0, 4095) : valUmido;
 
     // Validação cruzada: garante que seco < úmido
     if (novoSeco < novoUmido) { valSeco = novoSeco; valUmido = novoUmido; }
 
-    if (request->hasParam("limite")) limiteLigar  = request->getParam("limite")->value().toInt();
-    if (request->hasParam("tempo"))  tempoMaxRega = request->getParam("tempo")->value().toInt();
+    if (request->hasParam("limite")) limiteLigar  = constrain(request->getParam("limite")->value().toInt(), 0, 100);
+    if (request->hasParam("tempo"))  tempoMaxRega = constrain(request->getParam("tempo")->value().toInt(),  1, 120);
     request->send(200, "text/plain", "OK");
   });
 
@@ -310,16 +318,25 @@ void loop() { // LOOP PRINCIPAL
   unsigned long agora = millis();
 
   // --- 1. LEITURA E CONVERSÃO DO SENSOR ---
-  int leitura = analogRead(PINO_SENSOR);
+  long soma = 0;
+  for (int i = 0; i < AMOSTRAS_ADC; i++) soma += analogRead(PINO_SENSOR);
+  int leitura = soma / AMOSTRAS_ADC;
   umidade = constrain(map(leitura, valSeco, valUmido, 0, 100), 0, 100);
 
   // --- 2. CONTROLE DA BOMBA ---
   if (!bombaLigada) {
     bool cooldownEncerrado = (fimUltimaRega == 0) || (agora - fimUltimaRega >= COOLDOWN_REGA_MS);
-    if (umidade < limiteLigar && cooldownEncerrado) {
-      bombaLigada = true;
-      inicioRega  = agora;
-      digitalWrite(PINO_RELE, HIGH);
+    if (umidade < limiteLigar && cooldownEncerrado && regasSemEfeito < MAX_REGAS_SEM_EFEITO) {
+      // Se a rega anterior não elevou a umidade, o sensor pode estar solto ou fora do solo
+      if (fimUltimaRega != 0 && umidade <= umidadeAntesRega) regasSemEfeito++;
+      else                                                   regasSemEfeito = 0;
+
+      if (regasSemEfeito < MAX_REGAS_SEM_EFEITO) {
+        bombaLigada      = true;
+        inicioRega       = agora;
+        umidadeAntesRega = umidade;
+        digitalWrite(PINO_RELE, HIGH);
+      }
     }
   } else {
     if (agora - inicioRega >= (unsigned long)(tempoMaxRega * 1000)) {

@@ -95,7 +95,7 @@ void setup() {
   display.println("Iniciando AP...");
   display.display();
 
-  WiFi.softAP(ssid, password);
+  WiFi.softAP(ssid, password, 1, 0, 10); // Canal 1, rede visível, até 10 clientes (o padrão é 4)
   
   if (MDNS.begin("rede")) {  // mDNS: http://rede.local
     MDNS.addService("http", "tcp", 80);
@@ -148,7 +148,8 @@ void loop() {
     display.println("---------------------");
 
     for(int i=0; i<4; i++) {
-      if(agora - listaProjetos[i].lastSeen > 15000) {
+      // millis() é lido de novo aqui: um ping que chegue depois de "agora" daria uma diferença negativa
+      if(millis() - listaProjetos[i].lastSeen > 15000) {
         listaProjetos[i].ativo = false;
       }
       display.print(listaProjetos[i].nome + ":"); // Escreve o nome na esquerda

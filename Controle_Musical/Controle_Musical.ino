@@ -15,8 +15,6 @@
 // const char* password = "123456789";
 const char* ssid     = "ESP IoT";
 const char* password = "123456789";
-// const char* ssid     = "CLARO_6E22E7-IoT";
-// const char* password = "Enzomorfo6927";
 
 // PINOS DE HARDWARE - INMP441 e Relés
 const int I2S_WS  = 19;
@@ -337,14 +335,15 @@ void setup() { // SETUP
     if (request->hasParam("id") && request->hasParam("value")) {
       String id  = request->getParam("id")->value();
       int    val = request->getParam("value")->value().toInt();
-      if      (id == "limiarGlobal") { limiarGlobal = val; }
-      else if (id == "holdTime")     { holdTime     = val; }
-      else if (id == "offsetGrave")  { offsetGrave  = val; }
-      else if (id == "ganhoGrave")   { ganhoGrave   = val; }
-      else if (id == "offsetMedio")  { offsetMedio  = val; }
-      else if (id == "ganhoMedio")   { ganhoMedio   = val; }
-      else if (id == "offsetAgudo")  { offsetAgudo  = val; }
-      else if (id == "ganhoAgudo")   { ganhoAgudo   = val; }
+      // Mesmas faixas dos campos da página: o que chega fora delas é limitado
+      if      (id == "limiarGlobal") { limiarGlobal = constrain(val,   10, 2000); }
+      else if (id == "holdTime")     { holdTime     = constrain(val,  100, 1000); }
+      else if (id == "offsetGrave")  { offsetGrave  = constrain(val, -500,  100); }
+      else if (id == "ganhoGrave")   { ganhoGrave   = constrain(val,    1,   50); }
+      else if (id == "offsetMedio")  { offsetMedio  = constrain(val, -500,  100); }
+      else if (id == "ganhoMedio")   { ganhoMedio   = constrain(val,    1,   50); }
+      else if (id == "offsetAgudo")  { offsetAgudo  = constrain(val, -500,  100); }
+      else if (id == "ganhoAgudo")   { ganhoAgudo   = constrain(val,    1,   50); }
     }
     request->send(200, "text/plain", "OK");
   });

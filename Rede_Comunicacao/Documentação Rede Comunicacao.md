@@ -26,7 +26,7 @@ $$\text{Status do Módulo} = \begin{cases} \text{Ativo (ON)}, & \text{se } (t_{\
 
 ## ⚡ Recursos e Funcionalidades
 
-* **Ponto de Acesso Dedicado (SoftAP):** Criação da rede local `"Rede_Comunicacao"` com suporte a múltiplos clientes concorrentes.
+* **Ponto de Acesso Dedicado (SoftAP):** Criação da rede local `"Rede_Comunicacao"` com suporte a até $10$ clientes concorrentes (somando os módulos e os navegadores conectados).
 * **Resolução mDNS Local:** Permite acesso simplificado ao portal via navegador através do endereço humanamente legível `http://rede.local`[cite: 11].
 * **Interface Física Local (OLED I2C):** Atualização contínua a cada $2\text{ s}$ exibindo os dados da rede (URL e IP) e a indicação visual de status (`ON` ou `---`) para os 4 subprojetos[cite: 11].
 * **Portal Web Unificado:** Interface HTML/CSS responsiva com requisições dinâmicas via `fetch` (polling a cada $3\text{ s}$) que gera links diretos e clicáveis para os IPs dos módulos que estiverem ativos[cite: 11].

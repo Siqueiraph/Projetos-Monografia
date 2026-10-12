@@ -36,6 +36,8 @@ O solo seco comporta-se como um meio isolante, enquanto o solo úmido conduz cor
 * **Calibração de Dois Pontos:** Ajuste independente dos valores brutos de ADC para solo "Seco" e "Úmido" diretamente pela interface.
 * **Acionamento Automático da Bomba:** Liga a bomba quando a umidade cai abaixo do limiar configurado, por um tempo de rega ajustável (em segundos).
 * **Cooldown Anti-Encharcamento:** Período fixo de $60\text{ s}$ entre o fim de uma rega e o início da próxima, evitando acionamentos excessivos mesmo que a leitura oscile perto do limiar.
+* **Média de Leituras:** Cada medida de umidade é a média de $16$ leituras do ADC (`AMOSTRAS_ADC`), atenuando o ruído que poderia disparar uma rega antes do limiar.
+* **Proteção contra Sensor Solto:** Se $3$ regas seguidas (`MAX_REGAS_SEM_EFEITO`) não elevarem a umidade lida — caso de um fio solto ou das hastes fora do solo —, a bomba é bloqueada e a interface exibe **Verifique o sensor**. O bloqueio só é desfeito reiniciando o ESP32.
 * **Gráfico Dinâmico em Tempo Real:** Renderização por `HTML5 Canvas` da umidade percentual, com linha tracejada indicando o limiar de acionamento.
 * **Persistência de Dados (NVS):** Salva os pontos de calibração e os parâmetros de acionamento na memória flash via biblioteca `Preferences`.
 * **Conectividade Integrada:** Resolução mDNS (`http://Irrigacao.local`) e comunicação de *heartbeat* periódico com a central de comunicação do ecossistema didático.
@@ -74,8 +76,8 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
 | :--- | :--- | :--- |
 | `/` | `GET` | Entrega a interface *web* gráfica (HTML5/CSS/JavaScript). |
 | `/status` | `GET` | Retorna um JSON com os parâmetros de calibração e acionamento salvos. |
-| `/dados` | `GET` | Retorna a leitura atual: `{"umidade": int, "statusBomba": bool}`. |
-| `/set` | `GET` | Recebe parâmetros via *query params* (`?seco=X&umido=Y&limite=Z&tempo=W`) para atualização instantânea. |
+| `/dados` | `GET` | Retorna a leitura atual: `{"umidade": int, "statusBomba": bool, "bloqueio": bool}`. |
+| `/set` | `GET` | Recebe parâmetros via *query params* (`?seco=X&umido=Y&limite=Z&tempo=W`) para atualização instantânea. Valores fora das faixas da interface ($0$–$4095$, $0$–$4095$, $0$–$100$ e $1$–$120$) são limitados. |
 | `/save` | `GET` | Grava os valores atuais de calibração na memória NVS (`Preferences`). |
 
 ---

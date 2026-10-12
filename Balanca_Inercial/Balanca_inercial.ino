@@ -16,6 +16,9 @@ const char* password = "123456789";
 const int PINO_TRIG = 5;
 const int PINO_ECHO = 18;
 
+// PARÂMETROS DE MEDIÇÃO
+const unsigned long TIMEOUT_PARADO_MS = 3000; // Sem um novo pico por esse tempo, considera a oscilação encerrada
+
 // OBJETOS GLOBAIS
 AsyncWebServer server(80);
 Preferences preferences;
@@ -279,9 +282,10 @@ void setup() { // SETUP
   });
 
   server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("k"))      constanteK = request->getParam("k")->value().toFloat();
-    if (request->hasParam("ciclos")) numCiclos  = request->getParam("ciclos")->value().toInt();
-    if (request->hasParam("delay"))  intervaloLeitura = request->getParam("delay")->value().toInt();
+    // Mesmas faixas dos campos da página: o que chega fora delas é limitado
+    if (request->hasParam("k"))      constanteK = constrain(request->getParam("k")->value().toFloat(), 0.5f, 100.0f);
+    if (request->hasParam("ciclos")) numCiclos  = constrain(request->getParam("ciclos")->value().toInt(), 1, 10);
+    if (request->hasParam("delay"))  intervaloLeitura = constrain(request->getParam("delay")->value().toInt(), 20, 200);
     request->send(200, "text/plain", "OK");
   });
 
@@ -340,7 +344,7 @@ void loop() { // LOOP PRINCIPAL
             contagemCiclos++;
             
             if (contagemCiclos >= numCiclos) {
-              periodo = (somaPeriodos / (float)numCiclos) / 1000.0; // T em segundos
+              periodo = (somaPeriodos / (float)contagemCiclos) / 1000.0; // T em segundos (média dos ciclos de fato somados)
               
               // T = 2*PI * sqrt(m/k) -> m = k * (T / 2*PI)^2
               // Multiplica por 1000 para exibir em gramas
@@ -365,14 +369,13 @@ void loop() { // LOOP PRINCIPAL
     }
   }
 
-  // Timeout geral de oscilação: se o copo parar por muito tempo, zera
-  static unsigned long timeoutParado = 0;
-  if (abs(distancia - picoTemp) < 0.2 && abs(distancia - fundoTemp) < 0.2) {
-    if (agora - timeoutParado > 3000) {
-      periodo = 0.0;
-      massa = 0.0;
-    }
-  } else {
-    timeoutParado = agora;
+  // Timeout geral de oscilação: sem um novo pico por muito tempo, zera os resultados e
+  // descarta a medida em andamento, para que a pausa não entre no período da próxima
+  if (tempoUltimoPico > 0 && agora - tempoUltimoPico > TIMEOUT_PARADO_MS) {
+    periodo = 0.0;
+    massa   = 0.0;
+    tempoUltimoPico = 0;
+    somaPeriodos    = 0;
+    contagemCiclos  = 0;
   }
 }

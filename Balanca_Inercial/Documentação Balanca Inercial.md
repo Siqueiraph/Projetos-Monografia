@@ -2,6 +2,8 @@
 
 Módulo experimental de mecânica (dinâmica do oscilador harmônico simples) do ecossistema didático de Física baseado no microcontrolador **ESP32** e no **sensor ultrassônico HC-SR04**. Inspirado no método de medição de massa utilizado em ambientes de microgravidade, como a Estação Espacial Internacional (ISS), o dispositivo monitora sem contato físico a oscilação vertical de um porta-amostra preso a uma mola, calcula o período de oscilação por meio de um algoritmo de detecção de picos com histerese e infere a massa inercial da amostra a partir da constante elástica da mola. A interface *web* embarcada disponibiliza gráfico em tempo real da oscilação e calibração dos parâmetros físicos e de amostragem.
 
+> ⚠️ **Alerta:** o HC-SR04 é alimentado em $5\text{ V}$ e o seu pino **Echo** também sai em $5\text{ V}$, mas os pinos do ESP32 não toleram mais que $3{,}3\text{ V}$. A ligação direta do Echo ao GPIO 18, como na tabela de conexões abaixo, pode degradar o pino com o tempo. Recomenda-se um divisor de tensão no Echo (por exemplo, $1\text{ k}\Omega$ em série e $2\text{ k}\Omega$ para o GND).
+
 ---
 
 ## 📋 Sumário
@@ -30,7 +32,7 @@ $$d = \frac{\Delta t_{eco} \cdot 343}{2} \quad [\text{cm}] \text{, com } \Delta 
    Para reduzir a incerteza de uma única medição de período, o estudante pode configurar a quantidade de ciclos $n$ utilizada no cálculo da média, em troca de uma medida mais demorada:
    $$m = \frac{k}{4\pi^2} \cdot \left(\frac{1}{n}\sum_{i=1}^{n} T_i\right)^2$$
 
-> **Nota:** Se a oscilação cessar (distância permanecer estável dentro de $0{,}2\text{ cm}$ do último pico e vale por mais de $3\text{ s}$), o sistema zera automaticamente o período e a massa calculados.
+> **Nota:** Se a oscilação cessar (nenhum novo pico detectado por mais de $3\text{ s}$, constante `TIMEOUT_PARADO_MS`), o sistema zera automaticamente o período e a massa calculados e descarta a medida em andamento. Por consequência, períodos acima de $3\text{ s}$ não são medidos.
 
 ---
 
@@ -77,7 +79,7 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
 | `/` | `GET` | Entrega a interface *web* gráfica (HTML5/CSS/JavaScript). |
 | `/status` | `GET` | Retorna um JSON com a constante elástica e os parâmetros de amostragem salvos. |
 | `/dados` | `GET` | Retorna a leitura atual: `{"h": float, "T": float, "m": float}`. |
-| `/set` | `GET` | Recebe parâmetros via *query params* (`?k=X&ciclos=Y&delay=Z`) para atualização instantânea. |
+| `/set` | `GET` | Recebe parâmetros via *query params* (`?k=X&ciclos=Y&delay=Z`) para atualização instantânea. Valores fora das faixas da interface ($0{,}5$–$100$, $1$–$10$ e $20$–$200$) são limitados. |
 | `/save` | `GET` | Grava os valores atuais de calibração na memória NVS (`Preferences`). |
 
 ---

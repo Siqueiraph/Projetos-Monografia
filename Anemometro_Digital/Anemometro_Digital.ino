@@ -459,9 +459,10 @@ void setup() { // SETUP
   });
 
   server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("raio"))  raioRotor = request->getParam("raio")->value().toInt();
-    if (request->hasParam("imas"))  numImas   = request->getParam("imas")->value().toInt();
-    if (request->hasParam("fator")) fatorCopo = request->getParam("fator")->value().toFloat();
+    // Mesmas faixas dos campos da página: o que chega fora delas é limitado
+    if (request->hasParam("raio"))  raioRotor = constrain(request->getParam("raio")->value().toInt(), 1, 100);
+    if (request->hasParam("imas"))  numImas   = constrain(request->getParam("imas")->value().toInt(), 1, 3);
+    if (request->hasParam("fator")) fatorCopo = constrain(request->getParam("fator")->value().toFloat(), 1.0f, 5.0f);
     request->send(200, "text/plain", "OK");
   });
 
