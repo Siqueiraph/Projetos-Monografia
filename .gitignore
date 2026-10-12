@@ -1,2 +1,3 @@
 *.code-workspace
 credenciais_wifi.txt
+.claude/
