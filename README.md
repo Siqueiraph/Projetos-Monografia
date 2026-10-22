@@ -42,7 +42,10 @@ Anemometro_Digital/     Anemômetro Digital
 Balanca_Inercial/       Balança Inercial
 Controle_Musical/       Controle Musical
 Irrigacao_Automatica/   Irrigação Automática
+ferramentas/            Scripts de apoio (pré-visualização das interfaces sem o ESP32)
 ```
+
+No Anemômetro, a página *web* fica em um arquivo próprio (`pagina_html.h`) ao lado do *sketch*.
 
 ---
 
