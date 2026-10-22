@@ -35,11 +35,11 @@ const char index_html[] PROGMEM = R"rawliteral(
     .c-calibra { grid-column: 2; grid-row: 2 / 3; }
 
     canvas { display: block; width: 100%; flex-grow: 1; touch-action: pan-y; cursor: crosshair; }
-    #dataOverlay { position: absolute; top: 14px; right: 78px; font-size: clamp(30px, 4vh, 40px); font-weight: bold; text-shadow: 2px 2px 6px var(--preto1); z-index: 10; font-family: monospace; text-align: right; line-height: 1.1; pointer-events: none;}
+    #dataOverlay { position: absolute; top: 14px; right: 70px; font-size: clamp(30px, 4vh, 40px); font-weight: bold; text-shadow: 2px 2px 6px var(--preto1); z-index: 10; font-family: monospace; text-align: right; line-height: 1.1; pointer-events: none;}
     .data-v { color: var(--destaque); }
     .data-w { color: var(--cinza2); }
 
-    .top-btns { position: absolute; top: 21px; left: 72px; z-index: 10; display: flex; gap: 8px; }
+    .top-btns { position: absolute; top: 21px; left: 72px; z-index: 10; display: flex; flex-direction: column; gap: 8px; }
     .top-btn { padding: 10px 16px; font-size: 14px; font-weight: bold; background-color: var(--preto2); color: var(--branco); border: 1px solid var(--cinza1); border-radius: 6px; cursor: pointer; transition: 0.2s; }
     .top-btn:hover { filter: brightness(1.4); }
     .btn-saved { background-color: #4CAF50 !important; border-color: #4CAF50 !important; color: var(--preto1) !important; }
@@ -73,8 +73,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         <button class="top-btn" id="btnHold" onclick="toggleHold()">Hold</button>
       </div>
       <div id="dataOverlay">
-        <span class="data-v">v: <span id="velHtml">0.0</span> m/s</span><br>
-        <span class="data-w">w: <span id="omegaHtml">0.0</span> rad/s</span>
+        <span class="data-v">v:<span id="velHtml">0.0</span>m/s</span><br>
+        <span class="data-w">w:<span id="omegaHtml">0.0</span>rad/s</span>
       </div>
       <canvas id="plotCanvas"></canvas>
     </div>
@@ -218,7 +218,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       fetch('/dados').then(res => res.json()).then(data => {
         if (emHold) return;
         document.getElementById('velHtml').innerText = fmt(data.v, 1);
-        document.getElementById('omegaHtml').innerText = fmt(data.w, 2);
+        document.getElementById('omegaHtml').innerText = fmt(data.w, 1);
 
         let t = performance.now() / 1000;
         amostras.push({ t: t, v: data.v, w: data.w });
@@ -332,7 +332,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         ctx.fillStyle = COR_W; ctx.beginPath(); ctx.arc(x, Math.max(y0, pyW(sel.w)), 4, 0, 2 * Math.PI); ctx.fill();
         ctx.fillStyle = COR_V; ctx.beginPath(); ctx.arc(x, Math.max(y0, pyV(sel.v)), 4, 0, 2 * Math.PI); ctx.fill();
 
-        let texto = 't = ' + fmt(tFim - sel.t, 1) + ' s   v = ' + fmt(sel.v, 2) + ' m/s   w = ' + fmt(sel.w, 2) + ' rad/s';
+        let texto = 't = ' + fmt(tFim - sel.t, 1) + ' s   v = ' + fmt(sel.v, 1) + ' m/s   w = ' + fmt(sel.w, 1) + ' rad/s';
         ctx.font = 'bold ' + (fs - 1) + 'px monospace';
         let larg = ctx.measureText(texto).width + 16;
         let bx = Math.max(x0, Math.min(x1 - larg, x - larg / 2));
