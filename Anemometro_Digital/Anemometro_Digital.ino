@@ -9,6 +9,15 @@
 #include <math.h>
 
 // CONFIGURAÇÃO DE REDE
+const bool MODO_AUTONOMO = true; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
+
+// Rede própria (MODO_AUTONOMO = true): nome "Anemometro <ID>", acesso em http://192.168.4.1
+const char ID_ANEMOMETRO = 'A';              // Letra da placa: troque antes de gravar cada anemômetro
+const char* senhaAP        = "123456789";    // Mínimo de 8 caracteres
+const int   MAX_CLIENTES   = 6;              // Celulares conectados ao mesmo tempo (o ESP32 aceita até 10)
+const int   CANAIS_WIFI[4] = {1, 6, 11, 1};  // Canal de A, B, C e D: 1, 6 e 11 não se sobrepõem
+
+// Rede da Central (MODO_AUTONOMO = false)
 // const char* ssid     = "Rede_Comunicacao";
 // const char* password = "123456789";
 const char* ssid     = "ESP IoT";
@@ -422,10 +431,18 @@ void tarefaPing(void *parametro) {
 }
 
 void conectarWiFi() { // CONEXÃO WI-FI
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  int tentativas = 0;
-  while (WiFi.status() != WL_CONNECTED && tentativas < 20) { delay(500); tentativas++; }
+  if (MODO_AUTONOMO) {
+    // Ponto de acesso próprio: cada placa tem rede e canal distintos, todas em 192.168.4.1
+    String nomeRede = String("Anemometro ") + ID_ANEMOMETRO;
+    int canal = CANAIS_WIFI[constrain(ID_ANEMOMETRO - 'A', 0, 3)];
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(nomeRede.c_str(), senhaAP, canal, 0, MAX_CLIENTES);
+  } else {
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+    int tentativas = 0;
+    while (WiFi.status() != WL_CONNECTED && tentativas < 20) { delay(500); tentativas++; }
+  }
   if (MDNS.begin("Anemometro")) MDNS.addService("http", "tcp", 80);
 }
 
@@ -446,7 +463,8 @@ void setup() { // SETUP
   });
 
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
-    String json = "{\"raioRotor\":" + String(raioRotor) +
+    String json = "{\"id\":\""      + String(ID_ANEMOMETRO) + "\"" +
+                  ",\"raioRotor\":" + String(raioRotor) +
                   ",\"numImas\":"   + String(numImas) +
                   ",\"fatorCopo\":" + String(fatorCopo) + "}";
     request->send(200, "application/json", json);
@@ -475,7 +493,8 @@ void setup() { // SETUP
 
   server.begin();
 
-  xTaskCreate(tarefaPing, "ping", 8192, NULL, 1, NULL);
+  // Sem a Central não há a quem enviar o ping
+  if (!MODO_AUTONOMO) xTaskCreate(tarefaPing, "ping", 8192, NULL, 1, NULL);
 }
 
 void loop() { // LOOP PRINCIPAL

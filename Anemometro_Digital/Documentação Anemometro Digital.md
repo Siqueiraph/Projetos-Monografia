@@ -89,7 +89,8 @@ Se $\Delta t$ fosse simplesmente o intervalo entre os dois últimos pulsos, qual
 * **Separador Decimal Uniforme:** Todos os valores da interface (leituras, eixos, cursor e campo **Fator K**) usam ponto decimal, independentemente do idioma do navegador, e o campo aceita a digitação com ponto ou com vírgula. O separador é definido pela constante `SEP_DECIMAL` no código da página.
 * **Calibração Dinâmica:** Ajuste dos parâmetros geométricos (Raio e Qtd. de Ímãs, de 1 a 3) e aerodinâmicos (Fator $K$) diretamente pelo navegador, sem necessidade de recompilar o firmware.
 * **Persistência de Dados (NVS):** Salva as configurações de calibração na memória flash via biblioteca `Preferences`, preservando-as após reinicializações.
-* **Conectividade Integrada:** Resolução mDNS (`http://Anemometro.local`) e comunicação de *heartbeat* periódico com a [Central de Comunicação](../Rede_Comunicacao/Documenta%C3%A7%C3%A3o%20Rede%20Comunicacao.md) do ecossistema didático.
+* **Dois Modos de Rede:** No **modo autônomo**, cada anemômetro cria a própria rede Wi-Fi, sem roteador nem Central — ideal para várias unidades em sala. No **modo Central**, conecta-se à [Central de Comunicação](../Rede_Comunicacao/Documenta%C3%A7%C3%A3o%20Rede%20Comunicacao.md) e envia *heartbeat* periódico. Em ambos, há resolução mDNS (`http://Anemometro.local`).
+* **Identificação da Unidade:** A letra da placa (`ID_ANEMOMETRO`) aparece no nome da rede, no título da aba e em um selo ao lado dos botões, para que o aluno confirme a qual anemômetro está conectado.
 
 ---
 
@@ -135,7 +136,7 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
 | :--- | :--- | :--- |
 | `/` | `GET` | Entrega a interface *web* gráfica (HTML5/CSS/JavaScript). |
 | `/dados` | `GET` | Retorna um JSON com as leituras atuais: `{"v": float, "w": float}`. |
-| `/status` | `GET` | Retorna o estado atual das variáveis de calibração salvas. |
+| `/status` | `GET` | Retorna a letra da unidade e o estado atual das variáveis de calibração: `{"id": "A", "raioRotor": int, "numImas": int, "fatorCopo": float}`. |
 | `/set` | `GET` | Recebe parâmetros via *query params* (`?raio=X&imas=Y&fator=Z`) para atualização instantânea. Valores fora das faixas da interface ($1$–$100$, $1$–$3$ e $1{,}0$–$5{,}0$) são limitados. |
 | `/save` | `GET` | Grava os valores atuais de calibração na memória NVS (`Preferences`). |
 
@@ -158,13 +159,33 @@ A grade, o *hold* e o cursor de leitura são implementados inteiramente no naveg
 Abra na IDE a pasta `Anemometro_Digital` e ajuste a constante `SENSOR_HALL` de acordo com o sensor montado (ver [Sensores Suportados](#-sensores-suportados)).
 
 ### 3. Configuração da Rede
-No código-fonte, ajuste as credenciais para as do Ponto de Acesso Central:
+O modo de rede é escolhido pela constante `MODO_AUTONOMO`:
+
+```cpp
+const bool MODO_AUTONOMO = true; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
+const char ID_ANEMOMETRO = 'A';  // Letra desta placa (A a D): troque antes de gravar cada anemômetro
+```
+
+**Modo autônomo (`true`, padrão):** a placa cria a rede `Anemometro <ID>` (senha `senhaAP`) e é acessada em `http://192.168.4.1`. Nenhum *ping* é enviado.
+
+| `ID_ANEMOMETRO` | Rede | Canal |
+| :--- | :--- | :--- |
+| `'A'` | `Anemometro A` | 1 |
+| `'B'` | `Anemometro B` | 6 |
+| `'C'` | `Anemometro C` | 11 |
+| `'D'` | `Anemometro D` | 1 |
+
+* Troque `ID_ANEMOMETRO` **antes de gravar cada placa** e identifique a letra fisicamente no dispositivo: duas placas com a mesma letra criam redes de mesmo nome.
+* Os canais 1, 6 e 11 são os únicos da faixa de 2,4 GHz que não se sobrepõem; como são quatro unidades, A e D compartilham o canal 1 — mantenha-as afastadas. Os canais ficam no vetor `CANAIS_WIFI`.
+* `MAX_CLIENTES` ($6$, máximo de $10$) limita quantos celulares se conectam a cada placa ao mesmo tempo.
+
+**Modo Central (`false`):** a placa conecta-se à rede definida em `ssid`/`password` e envia *pings* à Central. Para integrá-la ao ecossistema, use as credenciais da Central:
 ```cpp
 const char* ssid     = "Rede_Comunicacao";
 const char* password = "123456789";
 ```
 
-> **Nota de implementação:** o *sketch* está atualmente configurado com uma rede de testes de bancada (`"ESP IoT"`). Para integrá-lo ao ecossistema, restaure o SSID `Rede_Comunicacao`, preservado em comentário logo acima.
+> **Nota de implementação:** no modo Central, o *sketch* está configurado com uma rede de testes de bancada (`"ESP IoT"`). Para integrá-lo ao ecossistema, restaure o SSID `Rede_Comunicacao`, preservado em comentário logo acima.
 
 ---
 
@@ -172,8 +193,10 @@ const char* password = "123456789";
 
 1. Monte o circuito conforme a tabela de pinagem do sensor escolhido e acople o sensor à base do rotor, alinhado à trajetória dos ímãs.
 2. Imprima em 3D (ou construa artesanalmente) o rotor com o número de pás/conchas e o raio desejados, posicionando o(s) ímã(s) de neodímio no alojamento previsto.
-3. Compile e carregue o *sketch* no ESP32 pela Arduino IDE, ajustando previamente as credenciais de rede e a constante `SENSOR_HALL`.
-4. Acesse a interface pelo navegador em `http://Anemometro.local` ou pelo IP exibido no portal da Central de Comunicação.
+3. Compile e carregue o *sketch* no ESP32 pela Arduino IDE, ajustando previamente o modo de rede (e, no modo autônomo, a letra `ID_ANEMOMETRO`) e a constante `SENSOR_HALL`.
+4. Acesse a interface pelo navegador:
+   * **Modo autônomo:** conecte o celular à rede `Anemometro <ID>` e abra `http://192.168.4.1`. Confira se a letra exibida no selo ao lado dos botões é a do seu anemômetro. Como a rede não tem internet, o celular pode avisar "sem conexão" e voltar aos dados móveis: desative os dados móveis ou escolha manter a conexão. O endereço `http://Anemometro.local` pode não funcionar em Android.
+   * **Modo Central:** abra `http://Anemometro.local` ou o IP exibido no portal da Central de Comunicação.
 5. Meça fisicamente o raio do rotor (em cm) e informe no campo **Raio**, junto da **Qtd Ímãs** efetivamente instalada — parâmetros incompatíveis com a montagem real distorcem a leitura de velocidade.
 6. Gere um fluxo de ar controlado (ventilador de bancada, sopro ou deslocamento do dispositivo) e observe a velocidade $v$ (m/s) e a velocidade angular $\omega$ (rad/s) no gráfico em tempo real. Se nenhuma velocidade for registrada com o rotor girando, ajuste o trimpot do módulo (sensor Reed) ou inverta a face do ímã (sensor Hall).
 7. Para extrair valores, clique em **Hold** para congelar o gráfico e passe o mouse (ou toque) sobre a curva: o cursor exibe o instante $t$ e os valores de $v$ e $\omega$ do ponto selecionado, e a grade permite estimar intervalos de tempo e de velocidade. Anote os valores e clique em **Retomar** para voltar à aquisição — o gráfico recomeça vazio.
