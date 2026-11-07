@@ -45,7 +45,7 @@ Irrigacao_Automatica/   Irrigação Automática
 ferramentas/            Scripts de apoio (pré-visualização das interfaces sem o ESP32)
 ```
 
-No Anemômetro, a página *web* fica em um arquivo próprio (`pagina_html.h`) ao lado do *sketch*.
+Em todos os projetos, a página *web* fica em um arquivo próprio (`pagina_html.h`) ao lado do *sketch*. Os quatro módulos têm a constante `MODO_AUTONOMO`: em `true`, criam a própria rede Wi-Fi e dispensam a Central.
 
 ---
 

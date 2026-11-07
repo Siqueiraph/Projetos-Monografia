@@ -40,7 +40,7 @@ O solo seco comporta-se como um meio isolante, enquanto o solo úmido conduz cor
 * **Proteção contra Sensor Solto:** Se $3$ regas seguidas (`MAX_REGAS_SEM_EFEITO`) não elevarem a umidade lida — caso de um fio solto ou das hastes fora do solo —, a bomba é bloqueada e a interface exibe **Verifique o sensor**. O bloqueio só é desfeito reiniciando o ESP32.
 * **Gráfico Dinâmico em Tempo Real:** Renderização por `HTML5 Canvas` da umidade percentual, com linha tracejada indicando o limiar de acionamento.
 * **Persistência de Dados (NVS):** Salva os pontos de calibração e os parâmetros de acionamento na memória flash via biblioteca `Preferences`.
-* **Conectividade Integrada:** Resolução mDNS (`http://Irrigacao.local`) e comunicação de *heartbeat* periódico com a central de comunicação do ecossistema didático.
+* **Dois Modos de Rede:** No **modo autônomo**, o módulo cria a própria rede Wi-Fi, sem roteador nem Central. No **modo Central**, conecta-se à [Central de Comunicação](../Rede_Comunicacao/Documenta%C3%A7%C3%A3o%20Rede%20Comunicacao.md) e envia *heartbeat* periódico. Em ambos, há resolução mDNS (`http://Irrigacao.local`).
 
 ---
 
@@ -80,6 +80,8 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
 | `/set` | `GET` | Recebe parâmetros via *query params* (`?seco=X&umido=Y&limite=Z&tempo=W`) para atualização instantânea. Valores fora das faixas da interface ($0$–$4095$, $0$–$4095$, $0$–$100$ e $1$–$120$) são limitados. |
 | `/save` | `GET` | Grava os valores atuais de calibração na memória NVS (`Preferences`). |
 
+A página fica em `pagina_html.h` (constante `index_html`), separada do *sketch*; o `.ino` apenas a inclui e a serve na rota `/`.
+
 ---
 
 ## 💻 Instalação e Configuração
@@ -94,7 +96,15 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
   * `ESPmDNS` (incluso no core do ESP32)
 
 ### 2. Configuração da Rede
-No código-fonte, ajuste as credenciais do seu Ponto de Acesso Central, se necessário:
+O modo de rede é escolhido pela constante `MODO_AUTONOMO`:
+
+```cpp
+const bool MODO_AUTONOMO = false; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
+```
+
+**Modo autônomo (`true`):** a placa cria a rede `Irrigacao Automatica` (senha `senhaAP`, até `MAX_CLIENTES` = $6$ celulares, canal 1) e é acessada em `http://192.168.4.1`. Nenhum *ping* é enviado.
+
+**Modo Central (`false`, padrão):** a placa conecta-se à rede definida em `ssid`/`password` e envia *pings* à Central. Para integrá-la ao ecossistema, use as credenciais da Central:
 ```cpp
 const char* ssid     = "Rede_Comunicacao";
 const char* password = "123456789";
@@ -106,7 +116,7 @@ const char* password = "123456789";
 
 1. Monte o circuito conforme a tabela de pinagem, inserindo as hastes metálicas no vaso ou canteiro a ser monitorado.
 2. Compile e carregue o firmware no ESP32 pela Arduino IDE.
-3. Acesse a interface pelo navegador em `http://Irrigacao.local` ou pelo IP exibido no portal da Central de Comunicação.
+3. Acesse a interface pelo navegador em `http://Irrigacao.local` ou pelo IP exibido no portal da Central de Comunicação (no modo autônomo, conecte-se à rede `Irrigacao Automatica` e abra `http://192.168.4.1`).
 4. Com o solo completamente seco, anote a leitura bruta e insira-a no campo **Seco**; em seguida, umedeça bem o solo (ou mergulhe as hastes em água) e insira a nova leitura no campo **Úmido**.
 5. Defina o **Limiar** (percentual mínimo de umidade antes do acionamento) e o **Tempo** de rega em segundos.
 6. Clique em **Salvar** para persistir a calibração na memória flash do ESP32.

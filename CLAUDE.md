@@ -4,7 +4,7 @@ Este arquivo orienta o Claude Code (claude.ai/code) ao trabalhar com o código d
 
 ## Visão geral
 
-Cinco sketches Arduino de arquivo único para ESP32 DevKit v1: a central `Rede_Comunicacao/` (SoftAP + portal + OLED) e quatro módulos (`Anemometro_Digital/`, `Balanca_Inercial/`, `Controle_Musical/`, `Irrigacao_Automatica/`). Não há bibliotecas compartilhadas: cada `.ino` é autocontido, com a página web embutida — exceto no Anemômetro, cuja página fica em `Anemometro_Digital/pagina_html.h`.
+Cinco sketches Arduino para ESP32 DevKit v1: a central `Rede_Comunicacao/` (SoftAP + portal + OLED) e quatro módulos (`Anemometro_Digital/`, `Balanca_Inercial/`, `Controle_Musical/`, `Irrigacao_Automatica/`). Não há bibliotecas compartilhadas: cada pasta tem o `.ino` e a página web em `pagina_html.h` (`index_html` nos módulos, `portal_html` na central). Os quatro módulos têm `MODO_AUTONOMO` (`true` = SoftAP próprio em 192.168.4.1, sem ping; `false` = estação na rede da central).
 
 `ferramentas/preview_anemometro.py` serve `pagina_html.h` e simula as rotas do Anemômetro para testar a interface sem o ESP32 (`python ferramentas/preview_anemometro.py`, só biblioteca padrão).
 
@@ -31,14 +31,14 @@ O estado versionado é o de bancada: SSID `"ESP IoT"` ativo no Anemômetro e no 
 
 - Identificadores e comentários em português, camelCase sem acentos (`velocidadeAngular`, `tarefaPing`). Constantes em UPPER_SNAKE com sufixo de unidade (`DEBOUNCE_US`, `JANELA_MEDIA_MS`); pinos com prefixo `PINO_`. Textos da interface em português.
 - Cabeçalho do arquivo com exatamente duas linhas: `// <Nome> - <descrição>` e `// Hardware: ...`.
-- Seções com faixas de comentário em maiúsculas, nesta ordem: includes, rede, pinos, parâmetros, globais, HTML, ping, `conectarWiFi`, `setup`, `loop` (no Anemômetro não há seção HTML: a página vem de `pagina_html.h`).
+- Seções com faixas de comentário em maiúsculas, nesta ordem: includes, rede, pinos, parâmetros, globais, ping, `conectarWiFi`, `setup`, `loop` (não há seção HTML: a página vem de `pagina_html.h`, incluído após os demais includes).
 - Indentação de 2 espaços, chaves K&R, `=` e comentários finais alinhados em coluna.
 - `loop()` não bloqueante: `unsigned long agora = millis()` com timestamps `static`. `delay()` só em `conectarWiFi()`; FreeRTOS só na tarefa de ping.
 - JSON montado por concatenação de `String`.
 
 ## Armadilhas
 
-- A página de cada módulo fica dentro de `R"rawliteral( ... )rawliteral"` no `.ino` (no Anemômetro, em `pagina_html.h`); o conteúdo não pode conter `)rawliteral"`.
+- A página de cada projeto fica dentro de `R"rawliteral( ... )rawliteral"` em `pagina_html.h`; o conteúdo não pode conter `)rawliteral"`.
 - Relés com lógica oposta: ativo em LOW no Musical, ativo em HIGH na Irrigação.
 - Musical: Fs = 9000 Hz, então as bordas das bandas devem ficar abaixo de 4500 Hz (`calcularBase` retorna em silêncio caso contrário).
 - Anemômetro: Hall usa `INPUT_PULLUP` e Reed usa `INPUT_PULLDOWN`, selecionados por `SENSOR_HALL`; o KY-025 deve ser alimentado em 3,3 V.

@@ -42,7 +42,7 @@ O microfone INMP441 converte a flutuação de pressão sonora captada por sua me
 * **Gráfico Dinâmico em Tempo Real:** Renderização por `HTML5 Canvas` das três bandas sobrepostas, com linha tracejada indicando o Limiar Global.
 * **Calibração Dinâmica:** Ajuste independente de Ganho e Offset por banda, além de Limiar Global e Hold Time, diretamente pelo navegador, sem recompilar o firmware.
 * **Persistência de Dados (NVS):** Salva as configurações de calibração na memória flash via biblioteca `Preferences`.
-* **Conectividade Integrada:** Resolução mDNS (`http://Musical.local`) e comunicação de *heartbeat* periódico com a central de comunicação do ecossistema didático.
+* **Dois Modos de Rede:** No **modo autônomo**, o módulo cria a própria rede Wi-Fi, sem roteador nem Central. No **modo Central**, conecta-se à [Central de Comunicação](../Rede_Comunicacao/Documenta%C3%A7%C3%A3o%20Rede%20Comunicacao.md) e envia *heartbeat* periódico. Em ambos, há resolução mDNS (`http://Musical.local`).
 
 ---
 
@@ -83,6 +83,8 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
 | `/save` | `GET` | Grava os valores atuais de calibração na memória NVS (`Preferences`). |
 | `/events` | `GET` (SSE) | Canal de eventos contínuo que transmite `{"g":X,"m":Y,"a":Z}` com os picos de cada banda. |
 
+A página fica em `pagina_html.h` (constante `index_html`), separada do *sketch*; o `.ino` apenas a inclui e a serve na rota `/`.
+
 ---
 
 ## 💻 Instalação e Configuração
@@ -98,7 +100,15 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
   * `driver/i2s.h` (incluso no core do ESP32)
 
 ### 2. Configuração da Rede
-No código-fonte, ajuste as credenciais do seu Ponto de Acesso Central. Por padrão, o módulo integra-se à rede gerada pela Central de Comunicação (`Rede_Comunicacao`); as linhas atualmente ativas no arquivo apontam para uma rede de bancada utilizada durante o desenvolvimento e devem ser editadas antes da compilação:
+O modo de rede é escolhido pela constante `MODO_AUTONOMO`:
+
+```cpp
+const bool MODO_AUTONOMO = false; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
+```
+
+**Modo autônomo (`true`):** a placa cria a rede `Controle Musical` (senha `senhaAP`, até `MAX_CLIENTES` = $6$ celulares, canal 1) e é acessada em `http://192.168.4.1`. Nenhum *ping* é enviado.
+
+**Modo Central (`false`, padrão):** a placa conecta-se à rede definida em `ssid`/`password` e envia *pings* à Central. Por padrão, o módulo integra-se à rede gerada pela Central de Comunicação (`Rede_Comunicacao`); as linhas atualmente ativas no arquivo apontam para uma rede de bancada utilizada durante o desenvolvimento e devem ser editadas antes da compilação:
 ```cpp
 // const char* ssid     = "Rede_Comunicacao";
 // const char* password = "123456789";
@@ -112,7 +122,7 @@ const char* password = "123456789";
 
 1. Monte o circuito conforme a tabela de pinagem, posicionando o microfone de modo a captar o som ambiente (caixas de som, instrumentos etc.).
 2. Compile e carregue o firmware no ESP32 pela Arduino IDE, ajustando previamente as credenciais de rede.
-3. Acesse a interface pelo navegador em `http://Musical.local` ou pelo IP exibido no portal da Central de Comunicação.
+3. Acesse a interface pelo navegador em `http://Musical.local` ou pelo IP exibido no portal da Central de Comunicação (no modo autônomo, conecte-se à rede `Controle Musical` e abra `http://192.168.4.1`).
 4. Reproduza uma música e observe o gráfico: ajuste o **Offset** de cada banda para eliminar o ruído de fundo e o **Ganho** para aumentar a sensibilidade da banda desejada.
 5. Defina o **Limiar** (linha tracejada no gráfico) como o ponto de disparo dos canais e o **Hold Time** para controlar a duração mínima de acionamento.
 6. Clique em **Salvar** para persistir a calibração na memória flash do ESP32.

@@ -13,7 +13,7 @@
 const bool MODO_AUTONOMO = true; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
 
 // Rede própria (MODO_AUTONOMO = true): nome "Anemometro <ID>", acesso em http://192.168.4.1
-const char ID_ANEMOMETRO = 'A';              // Letra da placa: troque antes de gravar cada anemômetro
+const char  ID_ANEMOMETRO  = 'A';            // Letra da placa: troque antes de gravar cada anemômetro
 const char* senhaAP        = "123456789";    // Mínimo de 8 caracteres
 const int   MAX_CLIENTES   = 6;              // Celulares conectados ao mesmo tempo (o ESP32 aceita até 10)
 const int   CANAIS_WIFI[4] = {1, 6, 11, 1};  // Canal de A, B, C e D: 1, 6 e 11 não se sobrepõem

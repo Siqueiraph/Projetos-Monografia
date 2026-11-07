@@ -45,7 +45,7 @@ $$d = \frac{\Delta t_{eco} \cdot 343}{2} \quad [\text{cm}] \text{, com } \Delta 
 * **Cálculo Direto da Massa:** Conversão automática do período medido em massa inercial (gramas), a partir da constante elástica $k$ calibrada previamente por ensaio estático (Lei de Hooke).
 * **Gráfico Dinâmico em Tempo Real:** Renderização por `HTML5 Canvas` da oscilação $h(t)$, com sobreposição do período $T$ e massa $m$ calculados.
 * **Persistência de Dados (NVS):** Salva a constante elástica e os parâmetros de amostragem na memória flash via biblioteca `Preferences`.
-* **Conectividade Integrada:** Resolução mDNS (`http://Balanca.local`) e comunicação de *heartbeat* periódico com a central de comunicação do ecossistema didático.
+* **Dois Modos de Rede:** No **modo autônomo**, o módulo cria a própria rede Wi-Fi, sem roteador nem Central. No **modo Central**, conecta-se à [Central de Comunicação](../Rede_Comunicacao/Documenta%C3%A7%C3%A3o%20Rede%20Comunicacao.md) e envia *heartbeat* periódico. Em ambos, há resolução mDNS (`http://Balanca.local`).
 
 ---
 
@@ -82,6 +82,8 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
 | `/set` | `GET` | Recebe parâmetros via *query params* (`?k=X&ciclos=Y&delay=Z`) para atualização instantânea. Valores fora das faixas da interface ($0{,}5$–$100$, $1$–$10$ e $20$–$200$) são limitados. |
 | `/save` | `GET` | Grava os valores atuais de calibração na memória NVS (`Preferences`). |
 
+A página fica em `pagina_html.h` (constante `index_html`), separada do *sketch*; o `.ino` apenas a inclui e a serve na rota `/`.
+
 ---
 
 ## 💻 Instalação e Configuração
@@ -97,7 +99,15 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
   * `math.h` (incluso no core do ESP32)
 
 ### 2. Configuração da Rede
-No código-fonte, ajuste as credenciais do seu Ponto de Acesso Central, se necessário:
+O modo de rede é escolhido pela constante `MODO_AUTONOMO`:
+
+```cpp
+const bool MODO_AUTONOMO = false; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
+```
+
+**Modo autônomo (`true`):** a placa cria a rede `Balanca Inercial` (senha `senhaAP`, até `MAX_CLIENTES` = $6$ celulares, canal 1) e é acessada em `http://192.168.4.1`. Nenhum *ping* é enviado.
+
+**Modo Central (`false`, padrão):** a placa conecta-se à rede definida em `ssid`/`password` e envia *pings* à Central. Para integrá-la ao ecossistema, use as credenciais da Central:
 ```cpp
 const char* ssid     = "Rede_Comunicacao";
 const char* password = "123456789";
@@ -110,7 +120,7 @@ const char* password = "123456789";
 1. Monte a estrutura física: fixe a mola ou elástico ao suporte universal, pendure o copo descartável (porta-amostra) e posicione o sensor ultrassônico logo abaixo, apontado para a base do copo.
 2. **Caracterize a mola:** realize um ensaio estático aplicando a Lei de Hooke (massa conhecida e deformação linear) para determinar a constante elástica $k$ antes de qualquer medição.
 3. Compile e carregue o firmware no ESP32 pela Arduino IDE.
-4. Acesse a interface pelo navegador em `http://Balanca.local` ou pelo IP exibido no portal da Central de Comunicação.
+4. Acesse a interface pelo navegador em `http://Balanca.local` ou pelo IP exibido no portal da Central de Comunicação (no modo autônomo, conecte-se à rede `Balanca Inercial` e abra `http://192.168.4.1`).
 5. Insira o valor de $k$ (N/m) determinado no ensaio estático no campo **k (N/m)** da interface.
 6. Coloque a amostra de interesse no porta-amostra, provoque uma oscilação vertical e observe o período $T$ e a massa $m$ calculados em tempo real.
 7. Ajuste o número de **Ciclos** para aumentar a estabilidade da leitura (em troca de uma medida mais demorada) e o **Delay** para adequar a janela de amostragem às limitações físicas do sensor.
