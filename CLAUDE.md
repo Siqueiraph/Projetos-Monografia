@@ -46,3 +46,4 @@ Cinco sketches Arduino para ESP32 DevKit v1: a central `Rede_Comunicacao/` (Soft
 
 - Não faça commit sem pedido. Ao terminar uma alteração, sugira uma mensagem de commit breve no padrão Conventional Commits, em português (`feat: adiciona ...`, `fix: corrige ...`, `refactor: ...`, `docs: ...`).
 - Só crie branch quando o usuário pedir (nomes `feature/<descricao-em-kebab-case>` ou `fix/<descricao>`).
+- O `.gitattributes` (`* text=auto eol=lf`) impõe LF no repositório e na cópia de trabalho, mesmo com `core.autocrlf=true`.
