@@ -90,7 +90,7 @@ Se $\Delta t$ fosse simplesmente o intervalo entre os dois últimos pulsos, qual
 * **Calibração Dinâmica:** Ajuste dos parâmetros geométricos (Raio e Qtd. de Ímãs, de 1 a 3) e aerodinâmicos (Fator $K$) diretamente pelo navegador, sem necessidade de recompilar o firmware.
 * **Persistência de Dados (NVS):** Salva as configurações de calibração na memória flash via biblioteca `Preferences`, preservando-as após reinicializações.
 * **Dois Modos de Rede:** No **modo autônomo**, cada anemômetro cria a própria rede Wi-Fi, sem roteador nem Central — ideal para várias unidades em sala. No **modo Central**, conecta-se à [Central de Comunicação](../Rede_Comunicacao/Documenta%C3%A7%C3%A3o%20Rede%20Comunicacao.md) e envia *heartbeat* periódico. Em ambos, há resolução mDNS (`http://Anemometro.local`).
-* **Identificação da Unidade:** A letra da placa (`ID_ANEMOMETRO`) aparece no nome da rede, no título da aba e em um selo ao lado dos botões, para que o aluno confirme a qual anemômetro está conectado.
+* **Identificação da Unidade:** A letra da placa (`ID_ANEMOMETRO`) aparece no nome da rede, no título da aba e em um selo acima dos botões Salvar e Hold, para que o aluno confirme a qual anemômetro está conectado.
 
 ---
 
@@ -176,11 +176,11 @@ Abra na IDE a pasta `Anemometro_Digital` e ajuste a constante `SENSOR_HALL` de a
 O modo de rede é escolhido pela constante `MODO_AUTONOMO`:
 
 ```cpp
-const bool MODO_AUTONOMO = true; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
-const char ID_ANEMOMETRO = 'A';  // Letra desta placa (A a D): troque antes de gravar cada anemômetro
+const bool MODO_AUTONOMO = false; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
+const char ID_ANEMOMETRO = 'A';   // Letra da placa: troque antes de gravar cada anemômetro
 ```
 
-**Modo autônomo (`true`, padrão):** a placa cria a rede `Anemometro <ID>` (senha `senhaAP`) e é acessada em `http://192.168.4.1`. Nenhum *ping* é enviado.
+**Modo autônomo (`true`):** a placa cria a rede `Anemometro <ID>` (senha `senhaAP`) e é acessada em `http://192.168.4.1`. Nenhum *ping* é enviado.
 
 | `ID_ANEMOMETRO` | Rede | Canal |
 | :--- | :--- | :--- |
@@ -193,13 +193,11 @@ const char ID_ANEMOMETRO = 'A';  // Letra desta placa (A a D): troque antes de g
 * Os canais 1, 6 e 11 são os únicos da faixa de 2,4 GHz que não se sobrepõem; como são quatro unidades, A e D compartilham o canal 1 — mantenha-as afastadas. Os canais ficam no vetor `CANAIS_WIFI`.
 * `MAX_CLIENTES` ($6$, máximo de $10$) limita quantos celulares se conectam a cada placa ao mesmo tempo.
 
-**Modo Central (`false`):** a placa conecta-se à rede definida em `ssid`/`password` e envia *pings* à Central com o nome `Anemometro <ID>` (o mesmo da rede própria), que deve constar em `listaProjetos[]` da Central. Para integrá-la ao ecossistema, use as credenciais da Central:
+**Modo Central (`false`, padrão):** a placa conecta-se à rede definida em `ssid`/`password` e envia *pings* à Central com o nome `Anemometro <ID>` (o mesmo da rede própria), que deve constar em `listaProjetos[]` da Central. A Central cadastra apenas `Anemometro A`; outra letra exige editar `listaProjetos[]`. Para integrá-la ao ecossistema, use as credenciais da Central:
 ```cpp
 const char* ssid     = "Rede_Comunicacao";
 const char* password = "123456789";
 ```
-
-> **Nota de implementação:** no modo Central, o *sketch* está configurado com uma rede de testes de bancada (`"ESP IoT"`). Para integrá-lo ao ecossistema, restaure o SSID `Rede_Comunicacao`, preservado em comentário logo acima.
 
 ---
 
@@ -209,7 +207,7 @@ const char* password = "123456789";
 2. Imprima em 3D (ou construa artesanalmente) o rotor com o número de pás/conchas e o raio desejados, posicionando o(s) ímã(s) de neodímio no alojamento previsto.
 3. Compile e carregue o *sketch* no ESP32 pela Arduino IDE, ajustando previamente o modo de rede (e, no modo autônomo, a letra `ID_ANEMOMETRO`) e a constante `SENSOR_HALL`.
 4. Acesse a interface pelo navegador:
-   * **Modo autônomo:** conecte o celular à rede `Anemometro <ID>` e abra `http://192.168.4.1`. Confira se a letra exibida no selo ao lado dos botões é a do seu anemômetro. Como a rede não tem internet, o celular pode avisar "sem conexão" e voltar aos dados móveis: desative os dados móveis ou escolha manter a conexão. O endereço `http://Anemometro.local` pode não funcionar em Android.
+   * **Modo autônomo:** conecte o celular à rede `Anemometro <ID>` e abra `http://192.168.4.1`. Confira se a letra exibida no selo acima dos botões Salvar e Hold é a do seu anemômetro. Como a rede não tem internet, o celular pode avisar "sem conexão" e voltar aos dados móveis: desative os dados móveis ou escolha manter a conexão. O endereço `http://Anemometro.local` pode não funcionar em Android.
    * **Modo Central:** abra `http://Anemometro.local` ou o IP exibido no portal da Central de Comunicação.
 5. Meça fisicamente o raio do rotor (em cm) e informe no campo **Raio**, junto da **Qtd Ímãs** efetivamente instalada — parâmetros incompatíveis com a montagem real distorcem a leitura de velocidade.
 6. Gere um fluxo de ar controlado (ventilador de bancada, sopro ou deslocamento do dispositivo) e observe a velocidade $v$ (m/s) e a velocidade angular $\omega$ (rad/s) no gráfico em tempo real. Se nenhuma velocidade for registrada com o rotor girando, ajuste o trimpot do módulo (sensor Reed) ou inverta a face do ímã (sensor Hall).

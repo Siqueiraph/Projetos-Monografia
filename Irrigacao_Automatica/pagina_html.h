@@ -38,6 +38,8 @@ const char index_html[] PROGMEM = R"rawliteral(
     /* ── Elementos do Gráfico ── */
     canvas { display: block; width: 100%; flex-grow: 1; }
     #humOverlay { position: absolute; top: 14px; right: 20px; font-size: clamp(36px, 5vh, 50px); font-weight: bold; color: var(--destaque); text-shadow: 2px 2px 6px var(--preto1); z-index: 10; font-family: monospace; }
+    #bombaOverlay { position: absolute; top: 72px; right: 20px; font-size: 16px; color: var(--cinza2); text-shadow: 2px 2px 6px var(--preto1); z-index: 10; font-family: monospace; }
+    .bomba-on { color: var(--destaque); }
     #btnSave { position: absolute; top: 14px; left: 14px; z-index: 10; padding: 10px 16px; font-size: 14px; font-weight: bold; background-color: var(--preto2); color: var(--branco); border: 1px solid var(--cinza1); border-radius: 6px; cursor: pointer; transition: 0.2s; }
     #btnSave:hover { filter: brightness(1.4); }
     .btn-saved { background-color: #4CAF50 !important; border-color: #4CAF50 !important; color: var(--preto1) !important; }
@@ -78,6 +80,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <div class="graph-wrapper">
       <button id="btnSave" onclick="saveData()">Salvar</button>
       <div id="humOverlay">0.0%</div>
+      <div id="bombaOverlay">Bomba desligada</div>
       <canvas id="plotCanvas"></canvas>
     </div>
     <div class="card c-calibra">
@@ -166,6 +169,9 @@ const char index_html[] PROGMEM = R"rawliteral(
     setInterval(function() {
       fetch('/dados').then(res => res.json()).then(data => {
         document.getElementById('humOverlay').innerText = data.bloqueio ? "Verifique o sensor" : data.umidade + "%";
+        let bomba = document.getElementById('bombaOverlay');
+        bomba.innerText = data.statusBomba ? 'Bomba ligada' : 'Bomba desligada';
+        bomba.classList.toggle('bomba-on', !!data.statusBomba);
         dataUmidade.push(data.umidade);
         if(dataUmidade.length > maxPts) dataUmidade.shift();
         drawCanvas();

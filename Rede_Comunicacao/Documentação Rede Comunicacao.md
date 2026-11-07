@@ -27,18 +27,18 @@ $$\text{Status do Módulo} = \begin{cases} \text{Ativo (ON)}, & \text{se } (t_{\
 ## ⚡ Recursos e Funcionalidades
 
 * **Ponto de Acesso Dedicado (SoftAP):** Criação da rede local `"Rede_Comunicacao"` com suporte a até $10$ clientes concorrentes (somando os módulos e os navegadores conectados).
-* **Resolução mDNS Local:** Permite acesso simplificado ao portal via navegador através do endereço humanamente legível `http://rede.local`[cite: 11].
-* **Interface Física Local (OLED I2C):** Atualização contínua a cada $2\text{ s}$ exibindo os dados da rede (URL e IP) e a indicação visual de status (`ON` ou `---`) para os 4 subprojetos[cite: 11].
-* **Portal Web Unificado:** Interface HTML/CSS responsiva com requisições dinâmicas via `fetch` (polling a cada $3\text{ s}$) que gera links diretos e clicáveis para os IPs dos módulos que estiverem ativos[cite: 11].
-* **Gestão Dinâmica de IP:** Mapeamento automático do endereço IP de origem dos módulos no momento da recepção do *heartbeat*[cite: 11].
+* **Resolução mDNS Local:** Permite acesso simplificado ao portal via navegador através do endereço humanamente legível `http://rede.local`.
+* **Interface Física Local (OLED I2C):** Atualização contínua a cada $2\text{ s}$ exibindo os dados da rede (URL e IP) e a indicação visual de status (`ON` ou `---`) para os 4 subprojetos.
+* **Portal Web Unificado:** Interface HTML/CSS responsiva com requisições dinâmicas via `fetch` (polling a cada $3\text{ s}$) que gera links diretos e clicáveis para os IPs dos módulos que estiverem ativos.
+* **Gestão Dinâmica de IP:** Mapeamento automático do endereço IP de origem dos módulos no momento da recepção do *heartbeat*.
 
 ---
 
 ## 🛠️ Esquema de Hardware e Pinagem
 
 ### Componentes Necessários
-* 1x Microcontrolador ESP32 DevKit v1[cite: 11]
-* 1x Display OLED SSD1306 ($128 \times 64$ pixels, Comunicação I2C)[cite: 11]
+* 1x Microcontrolador ESP32 DevKit v1
+* 1x Display OLED SSD1306 ($128 \times 64$ pixels, Comunicação I2C)
 * Protoboard e Jumper Wires
 
 ### Tabela de Conexões (I2C)
@@ -47,20 +47,20 @@ $$\text{Status do Módulo} = \begin{cases} \text{Ativo (ON)}, & \text{se } (t_{\
 | :--- | :--- | :--- | :--- |
 | **Display OLED** | VCC | **3.3V** | Alimentação do Display |
 | **Display OLED** | GND | **GND** | Referência Comum |
-| **Display OLED** | SDA | **GPIO 21** | Linha de Dados I2C[cite: 11] |
-| **Display OLED** | SCL | **GPIO 22** | Linha de Clock I2C[cite: 11] |
+| **Display OLED** | SDA | **GPIO 21** | Linha de Dados I2C |
+| **Display OLED** | SCL | **GPIO 22** | Linha de Clock I2C |
 
 ---
 
 ## 🌐 Arquitetura de Endpoints e API
 
-O servidor *web* assíncrono embarcado gerencia os seguintes caminhos HTTP na porta `80`[cite: 11]:
+O servidor *web* assíncrono embarcado gerencia os seguintes caminhos HTTP na porta `80`:
 
 | Rota HTTP | Método | Descrição |
 | :--- | :--- | :--- |
-| `/` | `GET` | Entrega o portal principal de acesso (HTML5/CSS/JS) com os botões dos projetos[cite: 11]. |
-| `/ping` | `GET` | Recebe requisições de *heartbeat* dos subprojetos (`?nome=NOME_PROJETO`), mapeando o IP remetente e atualizando a estampa de tempo[cite: 11]. |
-| `/api/projetos` | `GET` | Retorna um array JSON com o status de todos os projetos cadastrados: `[{"nome":"...", "ip":"...", "ativo":true/false}]`[cite: 11]. |
+| `/` | `GET` | Entrega o portal principal de acesso (HTML5/CSS/JS) com os botões dos projetos. |
+| `/ping` | `GET` | Recebe requisições de *heartbeat* dos subprojetos (`?nome=NOME_PROJETO`), mapeando o IP remetente e atualizando a estampa de tempo. |
+| `/api/projetos` | `GET` | Retorna um array JSON com o status de todos os projetos cadastrados: `[{"nome":"...", "ip":"...", "ativo":true/false}]`. |
 
 O portal fica em `pagina_html.h` (constante `portal_html`), separado do *sketch*; o `.ino` apenas o inclui e o serve na rota `/`.
 
@@ -76,13 +76,13 @@ Para ver a página sem gravar o ESP32, use `python scripts/visualizar_interface.
 * Dependências de bibliotecas:
   * `ESPAsyncWebServer`
   * `AsyncTCP`
-  * `Adafruit_SSD1306`[cite: 11]
-  * `Adafruit_GFX`[cite: 11]
-  * `Wire` (incluso no core do ESP32)[cite: 11]
-  * `ESPmDNS` (incluso no core do ESP32)[cite: 11]
+  * `Adafruit_SSD1306`
+  * `Adafruit_GFX`
+  * `Wire` (incluso no core do ESP32)
+  * `ESPmDNS` (incluso no core do ESP32)
 
 ### 2. Configurações da Rede Central
-As credenciais do Ponto de Acesso criado pelo ESP32 vêm configuradas como padrão[cite: 11]:
+As credenciais do Ponto de Acesso criado pelo ESP32 vêm configuradas como padrão:
 ```cpp
 const char* ssidAP       = "Rede_Comunicacao";
 const char* senhaAP      = "123456789"; // Mínimo de 8 caracteres
@@ -103,15 +103,5 @@ Qualquer novo módulo que deseje integrar-se ao portal da Central de Comunicaç�
 3. **Janela de Atividade:** a cada *ping* recebido, a Central grava o IP de origem e a marca de tempo (`ultimoPing`). Se nenhum *ping* for recebido por mais de $15\text{ s}$ (`TIMEOUT_INATIVO_MS`), o módulo é automaticamente marcado como inativo tanto no display OLED quanto no portal *web*.
 
 > **Nota:** nos quatro subprojetos, o *ping* é enviado pela função `tarefaPing`, criada com `xTaskCreate` ao final do `setup()` apenas quando `MODO_AUTONOMO = false` (no modo autônomo o módulo cria a própria rede e não há Central), e o intervalo entre envios é a constante `INTERVALO_PING_MS` ($5\text{ s}$). Como a tarefa roda em paralelo ao `loop()`, a espera pela resposta da Central — de até $1\text{ s}$ quando ela está fora de alcance — não interrompe a aquisição de dados nem a atualização dos gráficos. Ao alterar o intervalo, mantenha-o abaixo de $15\text{ s}$, para que o módulo não seja marcado como inativo entre dois *pings*.
-
-> **Nota de implementação:** o vetor `listaProjetos[]` atualmente ativo no código-fonte está configurado com nomes de teste de bancada (`"Anemometro A/B/C/D"`). A lista de produção do ecossistema — compatível com os quatro módulos didáticos (Anemômetro, Controle Musical, Irrigação Automática e Balança Inercial) — está preservada em comentário logo acima e deve ser restaurada antes de operar a rede com os quatro subprojetos simultaneamente:
-> ```cpp
-> Projeto listaProjetos[4] = {
->   {"Irrigacao",   "0.0.0.0", 0, false},
->   {"Musical",     "0.0.0.0", 0, false},
->   {"Anemometro A", "0.0.0.0", 0, false}, // O Anemômetro envia "Anemometro <ID>"
->   {"Balanca",     "0.0.0.0", 0, false}
-> };
-> ```
 
 Dessa forma, basta que o firmware de cada subprojeto envie o `nome` correspondente (`Irrigacao`, `Musical`, `Anemometro <ID>` ou `Balanca`) para que seu botão apareça automaticamente, com link direto, no portal unificado.

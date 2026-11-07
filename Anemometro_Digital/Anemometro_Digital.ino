@@ -10,7 +10,7 @@
 #include "pagina_html.h" // Interface web (index_html)
 
 // CONFIGURAÇÃO DE REDE
-const bool MODO_AUTONOMO = true; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
+const bool MODO_AUTONOMO = false; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
 
 // Rede própria (MODO_AUTONOMO = true): nome "Anemometro <ID>", acesso em http://192.168.4.1
 const char   ID_ANEMOMETRO  = 'A';            // Letra da placa: troque antes de gravar cada anemômetro
@@ -21,9 +21,7 @@ const int    CANAIS_WIFI[4] = {1, 6, 11, 1};  // Canal de A, B, C e D: 1, 6 e 11
 const int    CANAL_WIFI     = CANAIS_WIFI[constrain(ID_ANEMOMETRO - 'A', 0, 3)];
 
 // Rede da Central (MODO_AUTONOMO = false)
-// const char* ssid     = "Rede_Comunicacao";
-// const char* password = "123456789";
-const char* ssid     = "ESP IoT";
+const char* ssid     = "Rede_Comunicacao";
 const char* password = "123456789";
 
 // PINOS DE HARDWARE

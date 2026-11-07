@@ -118,9 +118,9 @@ const char index_html[] PROGMEM = R"rawliteral(
     window.onload = function() {
       resizeCanvas();
       fetch('/status').then(res => res.json()).then(data => {
-        if(document.getElementById('k')) document.getElementById('k').value = data.constanteK.toFixed(1);
-        if(document.getElementById('ciclos')) document.getElementById('ciclos').value = data.numCiclos;
-        if(document.getElementById('delay')) document.getElementById('delay').value = data.intervaloLeitura;
+        document.getElementById('k').value = data.constanteK.toFixed(1);
+        document.getElementById('ciclos').value = data.numCiclos;
+        document.getElementById('delay').value = data.intervaloLeitura;
       });
     };
 

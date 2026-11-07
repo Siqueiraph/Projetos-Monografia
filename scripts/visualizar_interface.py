@@ -43,10 +43,10 @@ PROJETOS = {
     }),
     "rede": ("Rede_Comunicacao", {
         "/api/projetos": [
-            {"nome": "Anemometro A", "ip": "192.168.4.2", "ativo": True},
-            {"nome": "Anemometro B", "ip": "0.0.0.0", "ativo": False},
-            {"nome": "Anemometro C", "ip": "0.0.0.0", "ativo": False},
-            {"nome": "Anemometro D", "ip": "0.0.0.0", "ativo": False},
+            {"nome": "Irrigacao", "ip": "192.168.4.2", "ativo": True},
+            {"nome": "Musical", "ip": "0.0.0.0", "ativo": False},
+            {"nome": "Anemometro A", "ip": "192.168.4.3", "ativo": True},
+            {"nome": "Balanca", "ip": "0.0.0.0", "ativo": False},
         ],
     }),
 }

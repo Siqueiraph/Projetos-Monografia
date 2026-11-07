@@ -44,6 +44,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     .top-btn:hover { filter: brightness(1.4); }
     .btn-saved { background-color: #4CAF50 !important; border-color: #4CAF50 !important; color: var(--preto1) !important; }
     .btn-hold  { background-color: var(--destaque) !important; border-color: var(--destaque) !important; color: var(--preto1) !important; }
+    .selo-id { padding: 6px 16px; font-size: 14px; font-weight: bold; text-align: center; color: var(--preto1); background-color: var(--destaque); border-radius: 6px; }
 
     .card { background-color: var(--preto2); padding: 18px 20px; border-radius: 10px; border-left: 5px solid var(--destaque); box-shadow: 0 4px 10px rgba(0,0,0,0.4); display: flex; flex-direction: column; justify-content: center;}
     h3 { margin: 0 0 16px 0; font-size: clamp(14px, 3vh, 22px); color: var(--cinza2); border-bottom: 1px solid var(--cinza1); padding-bottom: 8px; letter-spacing: 1px;}
@@ -69,6 +70,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   <div class="main-container">
     <div class="graph-wrapper">
       <div class="top-btns">
+        <div class="selo-id" id="seloId">-</div>
         <button class="top-btn" id="btnSave" onclick="saveData()">Salvar</button>
         <button class="top-btn" id="btnHold" onclick="toggleHold()">Hold</button>
       </div>
@@ -157,6 +159,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         setCampo('raio', data.raioRotor, 0);
         setCampo('imas', data.numImas, 0);
         setCampo('fator', data.fatorCopo, 1);
+        document.getElementById('seloId').innerText = data.id;
+        document.title = 'Anemômetro ' + data.id;
       });
     };
 
@@ -243,7 +247,10 @@ const char index_html[] PROGMEM = R"rawliteral(
       const fs = W < 500 ? 12 : 15;                       // Tamanho da fonte dos eixos (px)
       const margemLateral = fs * 4 + 6;                   // Espaço para os valores e o título de cada eixo vertical
       const x0 = margemLateral, x1 = W - margemLateral, y0 = 16, y1 = H - (fs * 3 + 8);
-      const COR_V = '#ff9900', COR_W = '#ccc', COR_T = '#aaa';
+      const css = getComputedStyle(document.documentElement);
+      const cor = nome => css.getPropertyValue(nome).trim();
+      const COR_V = cor('--destaque'), COR_W = cor('--cinza2'), COR_T = '#aaa';
+      const COR_GRADE = cor('--cinza1'), COR_CURSOR = cor('--branco');
       const fonteValores = fs + 'px monospace';
       const fonteTitulos = 'bold ' + fs + "px 'Segoe UI', Arial, sans-serif";
       ctx.clearRect(0, 0, W, H);
@@ -262,7 +269,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       const casasW = (topoW / DIVISOES_Y) < 1 ? 1 : 0;
 
       // Grade horizontal com os valores dos dois eixos verticais
-      ctx.setLineDash([]); ctx.lineWidth = 1; ctx.strokeStyle = '#333';
+      ctx.setLineDash([]); ctx.lineWidth = 1; ctx.strokeStyle = COR_GRADE;
       ctx.font = fonteValores; ctx.textBaseline = 'middle';
       for (let i = 0; i <= DIVISOES_Y; i++) {
         let y = Math.round(y1 - (i / DIVISOES_Y) * (y1 - y0)) + 0.5;
@@ -308,12 +315,13 @@ const char index_html[] PROGMEM = R"rawliteral(
       ctx.stroke();
 
       // Desenha a curva da Velocidade do Vento (m/s) - Laranja
-      ctx.fillStyle = 'rgba(255, 153, 0, 0.15)'; ctx.beginPath();
+      ctx.fillStyle = COR_V; ctx.globalAlpha = 0.15; ctx.beginPath();
       ctx.moveTo(px(amostras[0].t), y1);
       amostras.forEach(a => ctx.lineTo(px(a.t), pyV(a.v)));
       ctx.lineTo(px(tFim), y1);
       ctx.closePath();
       ctx.fill();
+      ctx.globalAlpha = 1;
       ctx.strokeStyle = COR_V; ctx.lineWidth = 3; ctx.beginPath();
       amostras.forEach((a, i) => {
         if (i === 0) ctx.moveTo(px(a.t), pyV(a.v)); else ctx.lineTo(px(a.t), pyV(a.v));
@@ -326,7 +334,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         let sel = amostras[0];
         amostras.forEach(a => { if (Math.abs(px(a.t) - cursorX) < Math.abs(px(sel.t) - cursorX)) sel = a; });
         let x = px(sel.t);
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = COR_CURSOR; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
         ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = COR_W; ctx.beginPath(); ctx.arc(x, Math.max(y0, pyW(sel.w)), 4, 0, 2 * Math.PI); ctx.fill();
@@ -337,8 +345,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         let larg = ctx.measureText(texto).width + 16;
         let bx = Math.max(x0, Math.min(x1 - larg, x - larg / 2));
         ctx.fillStyle = 'rgba(26, 26, 26, 0.92)'; ctx.fillRect(bx, y1 - 32, larg, 26);
-        ctx.strokeStyle = '#333'; ctx.strokeRect(bx + 0.5, y1 - 31.5, larg, 26);
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.strokeStyle = COR_GRADE; ctx.strokeRect(bx + 0.5, y1 - 31.5, larg, 26);
+        ctx.fillStyle = COR_CURSOR; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         ctx.fillText(texto, bx + 8, y1 - 19);
       }
     }

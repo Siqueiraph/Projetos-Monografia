@@ -20,9 +20,7 @@ const int    MAX_CLIENTES = 6;           // Celulares conectados ao mesmo tempo 
 const int    CANAL_WIFI   = 1;
 
 // Rede da Central (MODO_AUTONOMO = false)
-// const char* ssid     = "Rede_Comunicacao";
-// const char* password = "123456789";
-const char* ssid     = "ESP IoT";
+const char* ssid     = "Rede_Comunicacao";
 const char* password = "123456789";
 
 // PINOS DE HARDWARE
@@ -74,7 +72,7 @@ struct FiltroBiquad { // MOTOR DSP: FILTRO IIR BIQUAD
     return true;
   }
 
-  void setBandPass(float Fs, float f0, float Q) {
+  void configurarPassaBanda(float Fs, float f0, float Q) {
     float w0, cosW0, alpha, a0;
     if (!calcularBase(Fs, f0, Q, w0, cosW0, alpha, a0)) return;
     b0 =  alpha / a0;
@@ -87,13 +85,13 @@ struct FiltroBiquad { // MOTOR DSP: FILTRO IIR BIQUAD
 
   // Configura o passa-banda a partir das frequências de borda (Hz).
   // A frequência central é a média geométrica das bordas (escala logarítmica), e Q é derivado da largura de banda.
-  void setBandPassEdges(float Fs, float f_min, float f_max) {
-    float f0 = sqrtf(f_min * f_max);
-    float Q  = f0 / (f_max - f_min);
-    setBandPass(Fs, f0, Q);
+  void configurarBordas(float Fs, float freqMin, float freqMax) {
+    float f0 = sqrtf(freqMin * freqMax);
+    float Q  = f0 / (freqMax - freqMin);
+    configurarPassaBanda(Fs, f0, Q);
   }
 
-  float process(float in) {
+  float processar(float in) {
     float out = in * b0 + z1;
     z1 = in * b1 - out * a1 + z2;
     z2 = in * b2 - out * a2;
@@ -105,8 +103,8 @@ FiltroBiquad filtroGrave;
 FiltroBiquad filtroMedio;
 FiltroBiquad filtroAgudo;
 
-void setupI2S() { // CONFIGURAÇÃO DO DRIVER I2S (DMA)
-  const i2s_config_t i2s_config = {
+void configurarI2S() { // CONFIGURAÇÃO DO DRIVER I2S (DMA)
+  const i2s_config_t configI2S = {
     .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
     .sample_rate          = (int)FREQUENCIA_AMOSTRAGEM,
     .bits_per_sample      = I2S_BITS_PER_SAMPLE_32BIT,
@@ -118,15 +116,15 @@ void setupI2S() { // CONFIGURAÇÃO DO DRIVER I2S (DMA)
     .use_apll             = false
   };
 
-  const i2s_pin_config_t pin_config = {
+  const i2s_pin_config_t configPinos = {
     .bck_io_num   = PINO_I2S_SCK,
     .ws_io_num    = PINO_I2S_WS,
     .data_out_num = -1,
     .data_in_num  = PINO_I2S_SD
   };
 
-  i2s_driver_install(I2S_PORT, &i2s_config, 0, NULL);
-  i2s_set_pin(I2S_PORT, &pin_config);
+  i2s_driver_install(I2S_PORT, &configI2S, 0, NULL);
+  i2s_set_pin(I2S_PORT, &configPinos);
 }
 
 // Controle de relé. Lógica invertida: LOW = relé ligado, HIGH = relé desligado.
@@ -187,7 +185,7 @@ void setup() { // SETUP
   pinMode(PINO_RELE_MEDIO, OUTPUT); digitalWrite(PINO_RELE_MEDIO, HIGH);
   pinMode(PINO_RELE_AGUDO, OUTPUT); digitalWrite(PINO_RELE_AGUDO, HIGH);
 
-  setupI2S();
+  configurarI2S();
 
   preferences.begin("musical_cfg", false);
   limiarGlobal = preferences.getInt("limiarGlobal", 400);
@@ -196,9 +194,9 @@ void setup() { // SETUP
   offsetMedio  = preferences.getInt("offsetMedio",  0); ganhoMedio = preferences.getInt("ganhoMedio", 1);
   offsetAgudo  = preferences.getInt("offsetAgudo",  0); ganhoAgudo = preferences.getInt("ganhoAgudo", 1);
 
-  filtroGrave.setBandPassEdges(FREQUENCIA_AMOSTRAGEM,  180.0f,  600.0f);  // Grave: 180 Hz a 600 Hz  (ref. original: 80–500 Hz)
-  filtroMedio.setBandPassEdges(FREQUENCIA_AMOSTRAGEM,  600.0f, 1500.0f);  // Médio: 600 Hz a 1500 Hz
-  filtroAgudo.setBandPassEdges(FREQUENCIA_AMOSTRAGEM, 1500.0f, 4400.0f);  // Agudo: 1500 Hz a 4400 Hz
+  filtroGrave.configurarBordas(FREQUENCIA_AMOSTRAGEM,  180.0f,  600.0f);  // Grave: 180 Hz a 600 Hz  (ref. original: 80–500 Hz)
+  filtroMedio.configurarBordas(FREQUENCIA_AMOSTRAGEM,  600.0f, 1500.0f);  // Médio: 600 Hz a 1500 Hz
+  filtroAgudo.configurarBordas(FREQUENCIA_AMOSTRAGEM, 1500.0f, 4400.0f);  // Agudo: 1500 Hz a 4400 Hz
 
   conectarWiFi();
 
@@ -261,13 +259,13 @@ void loop() { // LOOP PRINCIPAL
     // O INMP441 entrega dados de 24 bits left-justified num word de 32 bits.
     // >> 14 produz valores de 18 bits (±131.072). Os ganhos e offsets da
     // interface compensam essa escala durante a calibração.
-    float raw = (float)(amostrasBrutas[i] >> 14);
+    float amostra = (float)(amostrasBrutas[i] >> 14);
 
     // Todos os três filtros são passa-banda, que rejeitam DC por construção
     // matemática (b0 = -b2, b1 = 0 → resposta zero em 0 Hz).
-    float sG = fabsf(filtroGrave.process(raw));
-    float sM = fabsf(filtroMedio.process(raw));
-    float sA = fabsf(filtroAgudo.process(raw));
+    float sG = fabsf(filtroGrave.processar(amostra));
+    float sM = fabsf(filtroMedio.processar(amostra));
+    float sA = fabsf(filtroAgudo.processar(amostra));
 
     if (sG > picoBlocoG) picoBlocoG = sG;
     if (sM > picoBlocoM) picoBlocoM = sM;

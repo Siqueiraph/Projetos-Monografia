@@ -25,12 +25,10 @@ const char* password = "123456789";
 const int PINO_SENSOR = 34; // ADC — leitura do divisor de tensão (só entrada)
 const int PINO_RELE   = 26; // Saída digital — aciona a bomba via relé
 
-// PARÂMETROS DE TEMPORIZAÇÃO
-const unsigned long COOLDOWN_REGA_MS = 60000UL; // 60 segundos
-
-// PARÂMETROS DE MEDIÇÃO E PROTEÇÃO
-const int AMOSTRAS_ADC         = 16; // Leituras do ADC por medida (a média atenua o ruído)
-const int MAX_REGAS_SEM_EFEITO = 3;  // Regas seguidas sem a umidade subir até bloquear a bomba (sensor solto ou fora do solo)
+// PARÂMETROS
+const unsigned long COOLDOWN_REGA_MS     = 60000UL; // 60 segundos
+const int           AMOSTRAS_ADC         = 16;      // Leituras do ADC por medida (a média atenua o ruído)
+const int           MAX_REGAS_SEM_EFEITO = 3;       // Regas seguidas sem a umidade subir até bloquear a bomba (sensor solto ou fora do solo)
 
 // OBJETOS GLOBAIS
 AsyncWebServer server(80);

@@ -17,15 +17,11 @@ Cinco sketches Arduino para ESP32 DevKit v1: a central `Rede_Comunicacao/` (Soft
 ## O que precisa ficar em sincronia
 
 - `tarefaPing()` e `conectarWiFi()` estão duplicadas nos quatro módulos e só diferem no nome do ping e do mDNS: uma mudança em uma deve ser replicada nas outras. A rede própria usa sempre `ssidAP` (`String`), `senhaAP`, `CANAL_WIFI` e `MAX_CLIENTES`; no Anemômetro, `ssidAP` e `CANAL_WIFI` derivam de `ID_ANEMOMETRO`.
-- O `nome` enviado em `/ping?nome=` por cada módulo deve ser idêntico a uma entrada de `listaProjetos[]` na central. O Anemômetro envia `Anemometro <ID>` (espaço codificado como `%20`). O laço do OLED assume quatro projetos (`i < 4`); os demais laços percorrem a lista inteira.
+- O `nome` enviado em `/ping?nome=` por cada módulo deve ser idêntico a uma entrada de `listaProjetos[]` na central. O Anemômetro envia `Anemometro <ID>` (espaço codificado como `%20`). A central cadastra só `Anemometro A`; outras letras exigem editar `listaProjetos[]`. O laço do OLED assume quatro projetos (`i < 4`); os demais laços percorrem a lista inteira.
 - `INTERVALO_PING_MS` (5 s) deve ficar abaixo de `TIMEOUT_INATIVO_MS` da central (15 s).
 - Em todos os módulos o nome do parâmetro de `/set` é igual à chave NVS, e o namespace é `<modulo>_cfg` (`anemometro_cfg`, `balanca_cfg`, `irrigacao_cfg`, `musical_cfg`; máximo de 15 caracteres). As chaves do JSON de `/status` são outro conjunto. Em Irrigação e Musical elas devem ser iguais aos `id` dos inputs (a página percorre as chaves genericamente). No Musical os três coincidem: a página envia `/set?<id>=<valor>`.
 - As respostas fixas de `scripts/visualizar_interface.py` usam as chaves de JSON de cada firmware: ao renomear uma chave ou rota, atualize o script.
 - Cada pasta tem um `Documentação <Nome>.md` que repete pinos, endpoints, constantes e valores padrão. Atualize o documento no mesmo commit que o código.
-
-## Configuração de bancada vs. produção
-
-O estado versionado é o de bancada: SSID `"ESP IoT"` ativo no Anemômetro e no Musical, e `listaProjetos[]` com `"Anemometro A".."Anemometro D"` (os valores de produção estão comentados logo ao lado). Não "corrija" isso sem que seja pedido.
 
 ## Estilo
 

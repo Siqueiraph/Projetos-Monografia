@@ -53,4 +53,4 @@ Em todos os projetos, a página *web* fica em um arquivo próprio (`pagina_html.
 
 1. Instale a [Arduino IDE](https://www.arduino.cc/en/software) com o suporte à placa ESP32.
 2. Abra a pasta do projeto desejado e siga a seção **Instalação e Configuração** da documentação correspondente, que lista as bibliotecas necessárias.
-3. Para usar vários módulos em conjunto, grave primeiro a [Central de Comunicação](Rede_Comunicacao/Documenta%C3%A7%C3%A3o%20Rede%20Comunicacao.md) e mantenha nos demais as credenciais da rede `Rede_Comunicacao`.
+3. Para usar vários módulos em conjunto, grave primeiro a [Central de Comunicação](Rede_Comunicacao/Documenta%C3%A7%C3%A3o%20Rede%20Comunicacao.md) e grave os demais como estão: os módulos já vêm com `MODO_AUTONOMO = false` e as credenciais da rede `Rede_Comunicacao`. Para usar um módulo isolado, sem a Central, troque para `MODO_AUTONOMO = true`.

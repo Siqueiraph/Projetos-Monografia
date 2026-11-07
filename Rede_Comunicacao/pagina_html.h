@@ -10,13 +10,14 @@ const char portal_html[] PROGMEM = R"rawliteral(
   <meta charset="UTF-8">
   <title>Rede de Comunicação</title>
   <style>
-    body { font-family: 'Segoe UI', Arial; background: #0a0a0a; color: white; text-align: center; padding: 20px; }
-    h1 { color: #ffffff; font-size: 24px; }
+    :root {--destaque: #1e90ff; --preto1: #0a0a0a; --cinza1: #333; --branco: #fff;}
+    body { font-family: 'Segoe UI', Arial; background: var(--preto1); color: white; text-align: center; padding: 20px; }
+    h1 { color: var(--branco); font-size: 24px; }
     .container { display: flex; flex-direction: column; gap: 15px; align-items: center; }
     .btn { display: block; width: 90%; max-width: 350px; padding: 20px; 
            text-decoration: none; color: white; border-radius: 12px; font-weight: bold; 
-           transition: 0.3s; border: 1px solid #333; text-transform: capitalize;}
-    .online { background: #1e90ff; border-color: #fff; box-shadow: 0 4px 15px rgba(30,144,255,0.4); }
+           transition: 0.3s; border: 1px solid var(--cinza1); text-transform: capitalize;}
+    .online { background: var(--destaque); border-color: var(--branco); box-shadow: 0 4px 15px rgba(30,144,255,0.4); }
     .offline { background: #222; color: #555; pointer-events: none; }
     .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 10px; }
     .dot-on { background-color: #00ff00; }

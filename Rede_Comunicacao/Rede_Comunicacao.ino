@@ -36,18 +36,11 @@ struct Projeto {
   bool          ativo;
 };
 
-// Projeto listaProjetos[4] = { // Projetos monitorados
-//   {"Irrigacao", "0.0.0.0", 0, false},
-//   {"Musical", "0.0.0.0", 0, false},
-//   {"Anemometro A", "0.0.0.0", 0, false}, // O Anemômetro envia "Anemometro <ID>"
-//   {"Balanca", "0.0.0.0", 0, false}
-// };
-
 Projeto listaProjetos[4] = { // Projetos monitorados: o OLED tem espaço para exatamente quatro linhas
-  {"Anemometro A", "0.0.0.0", 0, false},
-  {"Anemometro B", "0.0.0.0", 0, false},
-  {"Anemometro C", "0.0.0.0", 0, false},
-  {"Anemometro D", "0.0.0.0", 0, false}
+  {"Irrigacao",    "0.0.0.0", 0, false},
+  {"Musical",      "0.0.0.0", 0, false},
+  {"Anemometro A", "0.0.0.0", 0, false}, // O Anemômetro envia "Anemometro <ID>"
+  {"Balanca",      "0.0.0.0", 0, false}
 };
 
 void setup() { // SETUP

@@ -110,11 +110,9 @@ const bool MODO_AUTONOMO = false; // true = cria a própria rede (uso sem a Cent
 
 **Modo autônomo (`true`):** a placa cria a rede `Controle Musical` (senha `senhaAP`, até `MAX_CLIENTES` = $6$ celulares, canal 1) e é acessada em `http://192.168.4.1`. Nenhum *ping* é enviado.
 
-**Modo Central (`false`, padrão):** a placa conecta-se à rede definida em `ssid`/`password` e envia *pings* à Central. Por padrão, o módulo integra-se à rede gerada pela Central de Comunicação (`Rede_Comunicacao`); as linhas atualmente ativas no arquivo apontam para uma rede de bancada utilizada durante o desenvolvimento e devem ser editadas antes da compilação:
+**Modo Central (`false`, padrão):** a placa conecta-se à rede definida em `ssid`/`password` e envia *pings* à Central. Para integrá-la ao ecossistema, use as credenciais da Central:
 ```cpp
-// const char* ssid     = "Rede_Comunicacao";
-// const char* password = "123456789";
-const char* ssid     = "ESP IoT";
+const char* ssid     = "Rede_Comunicacao";
 const char* password = "123456789";
 ```
 

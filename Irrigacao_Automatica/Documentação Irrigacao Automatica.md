@@ -39,6 +39,7 @@ O solo seco comporta-se como um meio isolante, enquanto o solo úmido conduz cor
 * **Média de Leituras:** Cada medida de umidade é a média de $16$ leituras do ADC (`AMOSTRAS_ADC`), atenuando o ruído que poderia disparar uma rega antes do limiar.
 * **Proteção contra Sensor Solto:** Se $3$ regas seguidas (`MAX_REGAS_SEM_EFEITO`) não elevarem a umidade lida — caso de um fio solto ou das hastes fora do solo —, a bomba é bloqueada e a interface exibe **Verifique o sensor**. O bloqueio só é desfeito reiniciando o ESP32.
 * **Gráfico Dinâmico em Tempo Real:** Renderização por `HTML5 Canvas` da umidade percentual, com linha tracejada indicando o limiar de acionamento.
+* **Estado da Bomba:** A página indica abaixo da umidade se a bomba está ligada ou desligada (campo `statusBomba` de `/dados`).
 * **Persistência de Dados (NVS):** Salva os pontos de calibração e os parâmetros de acionamento na memória flash via biblioteca `Preferences`.
 * **Dois Modos de Rede:** No **modo autônomo**, o módulo cria a própria rede Wi-Fi, sem roteador nem Central. No **modo Central**, conecta-se à [Central de Comunicação](../Rede_Comunicacao/Documenta%C3%A7%C3%A3o%20Rede%20Comunicacao.md) e envia *heartbeat* periódico. Em ambos, há resolução mDNS (`http://Irrigacao.local`).
 
