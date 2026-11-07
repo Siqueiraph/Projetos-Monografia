@@ -126,8 +126,8 @@ const char index_html[] PROGMEM = R"rawliteral(
       fetch('/status').then(res => res.json()).then(data => { for (let key in data) { let el = document.getElementById(key); if (el) el.value = data[key]; } });
     };
     
-    function sendData(el) { let val = parseInt(el.value) || 0; val = Math.max(parseInt(el.min), Math.min(parseInt(el.max), val)); el.value = val; fetch(`/update?id=${el.id}&value=${val}`); }
-    function stepValue(id, delta) { let el = document.getElementById(id); let val = (parseInt(el.value) || 0) + delta; val = Math.max(parseInt(el.min), Math.min(parseInt(el.max), val)); el.value = val; fetch(`/update?id=${el.id}&value=${val}`); }
+    function sendData(el) { let val = parseInt(el.value) || 0; val = Math.max(parseInt(el.min), Math.min(parseInt(el.max), val)); el.value = val; fetch(`/set?${el.id}=${val}`); }
+    function stepValue(id, delta) { let el = document.getElementById(id); let val = (parseInt(el.value) || 0) + delta; val = Math.max(parseInt(el.min), Math.min(parseInt(el.max), val)); el.value = val; fetch(`/set?${el.id}=${val}`); }
     
     function saveData() { 
       let btn = document.getElementById('btnSave');

@@ -12,9 +12,10 @@
 const bool MODO_AUTONOMO = false; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
 
 // Rede própria (MODO_AUTONOMO = true): acesso em http://192.168.4.1
-const char* ssidAP       = "Irrigacao Automatica";
-const char* senhaAP      = "123456789"; // Mínimo de 8 caracteres
-const int   MAX_CLIENTES = 6;           // Celulares conectados ao mesmo tempo (o ESP32 aceita até 10)
+const String ssidAP       = "Irrigacao Automatica";
+const char*  senhaAP      = "123456789"; // Mínimo de 8 caracteres
+const int    MAX_CLIENTES = 6;           // Celulares conectados ao mesmo tempo (o ESP32 aceita até 10)
+const int    CANAL_WIFI   = 1;
 
 // Rede da Central (MODO_AUTONOMO = false)
 const char* ssid     = "Rede_Comunicacao";
@@ -73,7 +74,7 @@ void tarefaPing(void *parametro) {
 void conectarWiFi() { // CONEXÃO WI-FI
   if (MODO_AUTONOMO) {
     WiFi.mode(WIFI_AP);
-    WiFi.softAP(ssidAP, senhaAP, 1, 0, MAX_CLIENTES); // Canal 1, rede visível
+    WiFi.softAP(ssidAP.c_str(), senhaAP, CANAL_WIFI, 0, MAX_CLIENTES);
   } else {
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
@@ -87,15 +88,17 @@ void setup() { // SETUP
   pinMode(PINO_RELE, OUTPUT);
   digitalWrite(PINO_RELE, LOW);
 
-  preferences.begin("irrig_config", false);
+  preferences.begin("irrigacao_cfg", false);
   valSeco      = preferences.getInt("seco",   500);
   valUmido     = preferences.getInt("umido",  3500);
   limiteLigar  = preferences.getInt("limite", 30);
-  tempoMaxRega = preferences.getInt("timer",  10);
+  tempoMaxRega = preferences.getInt("tempo",  10);
 
   conectarWiFi();
 
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) { request->send_P(200, "text/html", index_html); });
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/html", index_html);
+  });
 
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     String json = "{\"vSeco\":"  + String(valSeco)      +
@@ -129,7 +132,7 @@ void setup() { // SETUP
     preferences.putInt("seco",   valSeco);
     preferences.putInt("umido",  valUmido);
     preferences.putInt("limite", limiteLigar);
-    preferences.putInt("timer",  tempoMaxRega);
+    preferences.putInt("tempo",  tempoMaxRega);
     request->send(200, "text/plain", "SALVO");
   });
 

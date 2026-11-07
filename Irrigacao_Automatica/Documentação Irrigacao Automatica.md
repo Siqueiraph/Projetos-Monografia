@@ -82,6 +82,8 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
 
 A página fica em `pagina_html.h` (constante `index_html`), separada do *sketch*; o `.ino` apenas a inclui e a serve na rota `/`.
 
+Para ver a página sem gravar o ESP32, use `python scripts/visualizar_interface.py irrigacao` (raiz do repositório) e abra `http://localhost:8000`; as rotas respondem com valores fixos de exemplo.
+
 ---
 
 ## 💻 Instalação e Configuração

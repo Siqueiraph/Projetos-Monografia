@@ -2,9 +2,8 @@
 // Hardware: ESP32 + Microfone INMP441 (Digital I2S) + Relé 3x
 
 #include <WiFi.h>
-#include <HTTPClient.h>
-#include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <HTTPClient.h>
 #include <ESPmDNS.h>
 #include <Preferences.h>
 #include <math.h>
@@ -15,9 +14,10 @@
 const bool MODO_AUTONOMO = false; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
 
 // Rede própria (MODO_AUTONOMO = true): acesso em http://192.168.4.1
-const char* ssidAP       = "Controle Musical";
-const char* senhaAP      = "123456789"; // Mínimo de 8 caracteres
-const int   MAX_CLIENTES = 6;           // Celulares conectados ao mesmo tempo (o ESP32 aceita até 10)
+const String ssidAP       = "Controle Musical";
+const char*  senhaAP      = "123456789"; // Mínimo de 8 caracteres
+const int    MAX_CLIENTES = 6;           // Celulares conectados ao mesmo tempo (o ESP32 aceita até 10)
+const int    CANAL_WIFI   = 1;
 
 // Rede da Central (MODO_AUTONOMO = false)
 // const char* ssid     = "Rede_Comunicacao";
@@ -25,19 +25,20 @@ const int   MAX_CLIENTES = 6;           // Celulares conectados ao mesmo tempo (
 const char* ssid     = "ESP IoT";
 const char* password = "123456789";
 
-// PINOS DE HARDWARE - INMP441 e Relés
-const int I2S_WS  = 19;
-const int I2S_SD  = 32;
-const int I2S_SCK = 18;
-const i2s_port_t I2S_PORT = I2S_NUM_0;
-const int PINO_RELE_GRAVE = 25;
-const int PINO_RELE_MEDIO = 26;
-const int PINO_RELE_AGUDO = 27;
+// PINOS DE HARDWARE
+const int        PINO_I2S_WS     = 19;
+const int        PINO_I2S_SD     = 32;
+const int        PINO_I2S_SCK    = 18;
+const i2s_port_t I2S_PORT        = I2S_NUM_0;
+const int        PINO_RELE_GRAVE = 25;
+const int        PINO_RELE_MEDIO = 26;
+const int        PINO_RELE_AGUDO = 27;
 
-// PARÂMETROS DE AMOSTRAGEM E TIMING
-const float    FREQUENCIA_AMOSTRAGEM = 9000.0f;  // Hz — define o teto de Nyquist em 4500 Hz
-const uint16_t AMOSTRAS              = 64;       // Amostras por pacote DMA
-const int      BLANKING_MS           = 60;       // Janela cega após disparo de relé (evita microfonia)
+// PARÂMETROS DE AMOSTRAGEM E TEMPORIZAÇÃO
+const float         FREQUENCIA_AMOSTRAGEM = 9000.0f; // Hz — define o teto de Nyquist em 4500 Hz
+const uint16_t      AMOSTRAS              = 64;      // Amostras por pacote DMA
+const unsigned long BLANKING_MS           = 60;      // Janela cega após disparo de relé (evita microfonia)
+const unsigned long INTERVALO_GRAFICO_MS  = 40;      // Intervalo entre envios do gráfico por SSE
 
 // OBJETOS GLOBAIS
 AsyncWebServer server(80);
@@ -54,51 +55,50 @@ int offsetAgudo, ganhoAgudo;
 // Estado de temporização
 unsigned long tempoUltimaAcao = 0;
 unsigned long tempoGrave = 0, tempoMedio = 0, tempoAgudo = 0;
-unsigned long tempoUltimoGrafico  = 0;
 
 // Picos inter-ciclos: acumulam o maior valor entre transmissões do gráfico
 float picoGrave = 0, picoMedio = 0, picoAgudo = 0;
 
 struct FiltroBiquad { // MOTOR DSP: FILTRO IIR BIQUAD
-    float b0, b1, b2; // Coeficientes do numerador
-    float a1, a2;     // Coeficientes do denominador (a0 normalizado para 1)
-    float z1, z2;     // Linhas de atraso (memória do filtro entre amostras)
+  float b0, b1, b2; // Coeficientes do numerador
+  float a1, a2;     // Coeficientes do denominador (a0 normalizado para 1)
+  float z1, z2;     // Linhas de atraso (memória do filtro entre amostras)
 
-    bool calcularBase(float Fs, float f0, float Q,
-                      float &w0, float &cosW0, float &alpha, float &a0) {
-        if (f0 <= 0.0f || f0 >= Fs / 2.0f || Q <= 0.0f) return false;
-        w0    = 2.0f * PI * (f0 / Fs);
-        cosW0 = cosf(w0);
-        alpha = sinf(w0) / (2.0f * Q);
-        a0    = 1.0f + alpha;
-        return true;
-    }
+  bool calcularBase(float Fs, float f0, float Q,
+                    float &w0, float &cosW0, float &alpha, float &a0) {
+    if (f0 <= 0.0f || f0 >= Fs / 2.0f || Q <= 0.0f) return false;
+    w0    = 2.0f * PI * (f0 / Fs);
+    cosW0 = cosf(w0);
+    alpha = sinf(w0) / (2.0f * Q);
+    a0    = 1.0f + alpha;
+    return true;
+  }
 
-    void setBandPass(float Fs, float f0, float Q) {
-        float w0, cosW0, alpha, a0;
-        if (!calcularBase(Fs, f0, Q, w0, cosW0, alpha, a0)) return;
-        b0 =  alpha / a0;
-        b1 =  0.0f;
-        b2 = -alpha / a0;
-        a1 = (-2.0f * cosW0) / a0;
-        a2 =  (1.0f - alpha) / a0;
-        z1 = z2 = 0.0f;
-    }
+  void setBandPass(float Fs, float f0, float Q) {
+    float w0, cosW0, alpha, a0;
+    if (!calcularBase(Fs, f0, Q, w0, cosW0, alpha, a0)) return;
+    b0 =  alpha / a0;
+    b1 =  0.0f;
+    b2 = -alpha / a0;
+    a1 = (-2.0f * cosW0) / a0;
+    a2 =  (1.0f - alpha) / a0;
+    z1 = z2 = 0.0f;
+  }
 
-    // Configura o passa-banda a partir das frequências de borda (Hz).
-    // A frequência central é a média geométrica das bordas (escala logarítmica), e Q é derivado da largura de banda.
-    void setBandPassEdges(float Fs, float f_min, float f_max) {
-        float f0 = sqrtf(f_min * f_max);
-        float Q  = f0 / (f_max - f_min);
-        setBandPass(Fs, f0, Q);
-    }
+  // Configura o passa-banda a partir das frequências de borda (Hz).
+  // A frequência central é a média geométrica das bordas (escala logarítmica), e Q é derivado da largura de banda.
+  void setBandPassEdges(float Fs, float f_min, float f_max) {
+    float f0 = sqrtf(f_min * f_max);
+    float Q  = f0 / (f_max - f_min);
+    setBandPass(Fs, f0, Q);
+  }
 
-    float process(float in) {
-        float out = in * b0 + z1;
-        z1 = in * b1 - out * a1 + z2;
-        z2 = in * b2 - out * a2;
-        return out;
-    }
+  float process(float in) {
+    float out = in * b0 + z1;
+    z1 = in * b1 - out * a1 + z2;
+    z2 = in * b2 - out * a2;
+    return out;
+  }
 };
 
 FiltroBiquad filtroGrave;
@@ -119,14 +119,35 @@ void setupI2S() { // CONFIGURAÇÃO DO DRIVER I2S (DMA)
   };
 
   const i2s_pin_config_t pin_config = {
-    .bck_io_num   = I2S_SCK,
-    .ws_io_num    = I2S_WS,
+    .bck_io_num   = PINO_I2S_SCK,
+    .ws_io_num    = PINO_I2S_WS,
     .data_out_num = -1,
-    .data_in_num  = I2S_SD
+    .data_in_num  = PINO_I2S_SD
   };
 
   i2s_driver_install(I2S_PORT, &i2s_config, 0, NULL);
   i2s_set_pin(I2S_PORT, &pin_config);
+}
+
+// Controle de relé. Lógica invertida: LOW = relé ligado, HIGH = relé desligado.
+// O blanking global (tempoUltimaAcao) impede microfonia pelo clique do relé.
+void controlarCanal(int pino, float volume, int limiar, unsigned long &tempoLigado) {
+  unsigned long agora = millis();
+  if (agora - tempoUltimaAcao < BLANKING_MS) return;
+
+  bool ligado = (digitalRead(pino) == LOW);
+  if (ligado) {
+    if (volume < limiar && (agora - tempoLigado > (unsigned long)holdTime)) {
+      digitalWrite(pino, HIGH);
+      tempoUltimaAcao = agora;
+    }
+  } else {
+    if (volume > limiar) {
+      digitalWrite(pino, LOW);
+      tempoLigado     = agora;
+      tempoUltimaAcao = agora;
+    }
+  }
 }
 
 // PING PARA A CENTRAL DE COMUNICAÇÃO
@@ -151,7 +172,7 @@ void tarefaPing(void *parametro) {
 void conectarWiFi() { // CONEXÃO WI-FI
   if (MODO_AUTONOMO) {
     WiFi.mode(WIFI_AP);
-    WiFi.softAP(ssidAP, senhaAP, 1, 0, MAX_CLIENTES); // Canal 1, rede visível
+    WiFi.softAP(ssidAP.c_str(), senhaAP, CANAL_WIFI, 0, MAX_CLIENTES);
   } else {
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
@@ -168,12 +189,12 @@ void setup() { // SETUP
 
   setupI2S();
 
-  preferences.begin("dj_config", false);
-  limiarGlobal = preferences.getInt("lim",   400);
-  holdTime     = preferences.getInt("hold",  120);
-  offsetGrave  = preferences.getInt("offG",    0); ganhoGrave = preferences.getInt("ganG", 1);
-  offsetMedio  = preferences.getInt("offM",    0); ganhoMedio = preferences.getInt("ganM", 1);
-  offsetAgudo  = preferences.getInt("offA",    0); ganhoAgudo = preferences.getInt("ganA", 1);
+  preferences.begin("musical_cfg", false);
+  limiarGlobal = preferences.getInt("limiarGlobal", 400);
+  holdTime     = preferences.getInt("holdTime",     120);
+  offsetGrave  = preferences.getInt("offsetGrave",  0); ganhoGrave = preferences.getInt("ganhoGrave", 1);
+  offsetMedio  = preferences.getInt("offsetMedio",  0); ganhoMedio = preferences.getInt("ganhoMedio", 1);
+  offsetAgudo  = preferences.getInt("offsetAgudo",  0); ganhoAgudo = preferences.getInt("ganhoAgudo", 1);
 
   filtroGrave.setBandPassEdges(FREQUENCIA_AMOSTRAGEM,  180.0f,  600.0f);  // Grave: 180 Hz a 600 Hz  (ref. original: 80–500 Hz)
   filtroMedio.setBandPassEdges(FREQUENCIA_AMOSTRAGEM,  600.0f, 1500.0f);  // Médio: 600 Hz a 1500 Hz
@@ -181,7 +202,9 @@ void setup() { // SETUP
 
   conectarWiFi();
 
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) { request->send_P(200, "text/html", index_html); });
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/html", index_html);
+  });
 
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     String json = "{\"limiarGlobal\":" + String(limiarGlobal) + ",\"holdTime\":"    + String(holdTime)   +
@@ -191,28 +214,24 @@ void setup() { // SETUP
     request->send(200, "application/json", json);
   });
 
-  server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("id") && request->hasParam("value")) {
-      String id  = request->getParam("id")->value();
-      int    val = request->getParam("value")->value().toInt();
-      // Mesmas faixas dos campos da página: o que chega fora delas é limitado
-      if      (id == "limiarGlobal") { limiarGlobal = constrain(val,   10, 2000); }
-      else if (id == "holdTime")     { holdTime     = constrain(val,  100, 1000); }
-      else if (id == "offsetGrave")  { offsetGrave  = constrain(val, -500,  100); }
-      else if (id == "ganhoGrave")   { ganhoGrave   = constrain(val,    1,   50); }
-      else if (id == "offsetMedio")  { offsetMedio  = constrain(val, -500,  100); }
-      else if (id == "ganhoMedio")   { ganhoMedio   = constrain(val,    1,   50); }
-      else if (id == "offsetAgudo")  { offsetAgudo  = constrain(val, -500,  100); }
-      else if (id == "ganhoAgudo")   { ganhoAgudo   = constrain(val,    1,   50); }
-    }
+  server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request) {
+    // Mesmas faixas dos campos da página: o que chega fora delas é limitado
+    if (request->hasParam("limiarGlobal")) limiarGlobal = constrain(request->getParam("limiarGlobal")->value().toInt(),   10, 2000);
+    if (request->hasParam("holdTime"))     holdTime     = constrain(request->getParam("holdTime")->value().toInt(),      100, 1000);
+    if (request->hasParam("offsetGrave"))  offsetGrave  = constrain(request->getParam("offsetGrave")->value().toInt(), -500,  100);
+    if (request->hasParam("ganhoGrave"))   ganhoGrave   = constrain(request->getParam("ganhoGrave")->value().toInt(),     1,   50);
+    if (request->hasParam("offsetMedio"))  offsetMedio  = constrain(request->getParam("offsetMedio")->value().toInt(), -500,  100);
+    if (request->hasParam("ganhoMedio"))   ganhoMedio   = constrain(request->getParam("ganhoMedio")->value().toInt(),     1,   50);
+    if (request->hasParam("offsetAgudo"))  offsetAgudo  = constrain(request->getParam("offsetAgudo")->value().toInt(), -500,  100);
+    if (request->hasParam("ganhoAgudo"))   ganhoAgudo   = constrain(request->getParam("ganhoAgudo")->value().toInt(),     1,   50);
     request->send(200, "text/plain", "OK");
   });
 
   server.on("/save", HTTP_GET, [](AsyncWebServerRequest *request) {
-    preferences.putInt("lim",  limiarGlobal); preferences.putInt("hold", holdTime);
-    preferences.putInt("offG", offsetGrave);  preferences.putInt("ganG", ganhoGrave);
-    preferences.putInt("offM", offsetMedio);  preferences.putInt("ganM", ganhoMedio);
-    preferences.putInt("offA", offsetAgudo);  preferences.putInt("ganA", ganhoAgudo);
+    preferences.putInt("limiarGlobal", limiarGlobal); preferences.putInt("holdTime",   holdTime);
+    preferences.putInt("offsetGrave",  offsetGrave);  preferences.putInt("ganhoGrave", ganhoGrave);
+    preferences.putInt("offsetMedio",  offsetMedio);  preferences.putInt("ganhoMedio", ganhoMedio);
+    preferences.putInt("offsetAgudo",  offsetAgudo);  preferences.putInt("ganhoAgudo", ganhoAgudo);
     request->send(200, "text/plain", "SALVO");
   });
 
@@ -223,30 +242,9 @@ void setup() { // SETUP
   if (!MODO_AUTONOMO) xTaskCreate(tarefaPing, "ping", 8192, NULL, 1, NULL);
 }
 
-// CONTROLE DE RELÉ
-// Lógica invertida: LOW = relé ligado, HIGH = relé desligado.
-// O blanking global (tempoUltimaAcao) impede microfonia pelo clique do relé.
-void controlarCanal(int pino, float volume, int limiar, unsigned long &lastOn) {
-  unsigned long agora = millis();
-  if (agora - tempoUltimaAcao < BLANKING_MS) return;
-
-  bool ligado = (digitalRead(pino) == LOW);
-  if (ligado) {
-    if (volume < limiar && (agora - lastOn > (unsigned long)holdTime)) {
-      digitalWrite(pino, HIGH);
-      tempoUltimaAcao = agora;
-    }
-  } else {
-    if (volume > limiar) {
-      digitalWrite(pino, LOW);
-      lastOn         = agora;
-      tempoUltimaAcao = agora;
-    }
-  }
-}
-
 void loop() { // LOOP PRINCIPAL
   unsigned long agora = millis();
+  static unsigned long tempoUltimoGrafico = 0;
 
   float picoBlocoG = 0, picoBlocoM = 0, picoBlocoA = 0;
 
@@ -255,13 +253,6 @@ void loop() { // LOOP PRINCIPAL
   size_t bytesLidos;
   i2s_read(I2S_PORT, amostrasBrutas, sizeof(amostrasBrutas), &bytesLidos, pdMS_TO_TICKS(20));
   if (bytesLidos == 0) return;
-
-  // Serial.begin(115200);
-  // // Serial.println(bytesLidos);
-
-  // // TESTE DE DIAGNÓSTICO RIGOROSO:
-  // Serial.println(amostrasBrutas[0]);
-  // return; // Interrompe o resto do loop. Esqueça relés e filtros por enquanto.
 
   int numAmostras = bytesLidos / sizeof(int32_t);
 
@@ -298,10 +289,10 @@ void loop() { // LOOP PRINCIPAL
   controlarCanal(PINO_RELE_AGUDO, volAgudo, limiarGlobal, tempoAgudo);
 
   // --- 5. TRANSMISSÃO DO GRÁFICO (SSE) ---
-  if (events.count() > 0 && (agora - tempoUltimoGrafico > 40)) {
+  if (events.count() > 0 && (agora - tempoUltimoGrafico > INTERVALO_GRAFICO_MS)) {
     static char jsonBuf[48];
     snprintf(jsonBuf, sizeof(jsonBuf), "{\"g\":%d,\"m\":%d,\"a\":%d}",
-            (int)picoGrave, (int)picoMedio, (int)picoAgudo);
+             (int)picoGrave, (int)picoMedio, (int)picoAgudo);
     events.send(jsonBuf, "plot", agora);
     tempoUltimoGrafico = agora;
     picoGrave = picoMedio = picoAgudo = 0.0f;

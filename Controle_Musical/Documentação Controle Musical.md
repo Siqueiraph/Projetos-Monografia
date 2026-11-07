@@ -79,11 +79,13 @@ O firmware roda um servidor HTTP assíncrono na porta `80` e disponibiliza as se
 | :--- | :--- | :--- |
 | `/` | `GET` | Entrega a interface *web* gráfica (HTML5/CSS/JavaScript). |
 | `/status` | `GET` | Retorna um JSON com todos os parâmetros de calibração atuais. |
-| `/update` | `GET` | Recebe parâmetros via *query params* (`?id=NOME&value=X`) para atualização instantânea de um único campo. Valores fora da faixa do campo na interface são limitados. |
+| `/set` | `GET` | Recebe parâmetros via *query params* com o nome do campo (`?limiarGlobal=X`, `?ganhoGrave=Y`...) para atualização instantânea. Valores fora da faixa do campo na interface são limitados. |
 | `/save` | `GET` | Grava os valores atuais de calibração na memória NVS (`Preferences`). |
 | `/events` | `GET` (SSE) | Canal de eventos contínuo que transmite `{"g":X,"m":Y,"a":Z}` com os picos de cada banda. |
 
 A página fica em `pagina_html.h` (constante `index_html`), separada do *sketch*; o `.ino` apenas a inclui e a serve na rota `/`.
+
+Para ver a página sem gravar o ESP32, use `python scripts/visualizar_interface.py musical` (raiz do repositório) e abra `http://localhost:8000`; as rotas respondem com valores fixos de exemplo. O gráfico fica vazio, pois o canal `/events` não é simulado.
 
 ---
 
@@ -94,7 +96,7 @@ A página fica em `pagina_html.h` (constante `index_html`), separada do *sketch*
 * Suporte à placa ESP32 instalado na IDE
 * Dependências de bibliotecas:
   * `ESPAsyncWebServer`
-  * `AsyncTCP` (para arquitetura ESP32)
+  * `AsyncTCP` (dependência do `ESPAsyncWebServer`)
   * `Preferences` (incluso no core do ESP32)
   * `ESPmDNS` (incluso no core do ESP32)
   * `driver/i2s.h` (incluso no core do ESP32)

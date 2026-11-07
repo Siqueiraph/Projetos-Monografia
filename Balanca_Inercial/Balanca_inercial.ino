@@ -13,9 +13,10 @@
 const bool MODO_AUTONOMO = false; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
 
 // Rede própria (MODO_AUTONOMO = true): acesso em http://192.168.4.1
-const char* ssidAP       = "Balanca Inercial";
-const char* senhaAP      = "123456789"; // Mínimo de 8 caracteres
-const int   MAX_CLIENTES = 6;           // Celulares conectados ao mesmo tempo (o ESP32 aceita até 10)
+const String ssidAP       = "Balanca Inercial";
+const char*  senhaAP      = "123456789"; // Mínimo de 8 caracteres
+const int    MAX_CLIENTES = 6;           // Celulares conectados ao mesmo tempo (o ESP32 aceita até 10)
+const int    CANAL_WIFI   = 1;
 
 // Rede da Central (MODO_AUTONOMO = false)
 const char* ssid     = "Rede_Comunicacao";
@@ -27,6 +28,8 @@ const int PINO_ECHO = 18;
 
 // PARÂMETROS DE MEDIÇÃO
 const unsigned long TIMEOUT_PARADO_MS = 3000; // Sem um novo pico por esse tempo, considera a oscilação encerrada
+const unsigned long PERIODO_MIN_MS    = 150;  // Ciclos mais rápidos que isso são ruído
+const float         HISTERESE_CM      = 0.5;  // Margem para descartar ruídos minúsculos na detecção de picos
 
 // OBJETOS GLOBAIS
 AsyncWebServer server(80);
@@ -49,7 +52,7 @@ unsigned long somaPeriodos    = 0;
 // Resultados para o Front-End
 float distancia = 0.0;
 float periodo   = 0.0;
-float massa = 0.0; // Em gramas
+float massa     = 0.0; // Em gramas
 
 // PING PARA A CENTRAL DE COMUNICAÇÃO
 const unsigned long INTERVALO_PING_MS = 5000; // A Central considera o módulo inativo após 15 s sem ping
@@ -73,7 +76,7 @@ void tarefaPing(void *parametro) {
 void conectarWiFi() { // CONEXÃO WI-FI
   if (MODO_AUTONOMO) {
     WiFi.mode(WIFI_AP);
-    WiFi.softAP(ssidAP, senhaAP, 1, 0, MAX_CLIENTES); // Canal 1, rede visível
+    WiFi.softAP(ssidAP.c_str(), senhaAP, CANAL_WIFI, 0, MAX_CLIENTES);
   } else {
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
@@ -94,8 +97,8 @@ void setup() { // SETUP
 
   conectarWiFi();
 
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) { 
-    request->send_P(200, "text/html", index_html); 
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/html", index_html);
   });
 
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -159,19 +162,17 @@ void loop() { // LOOP PRINCIPAL
       distancia = distFiltrada;
 
       // --- ALGORITMO DETECTOR DE PICOS COM HISTERESE ---
-      float threshold = 0.5; // Margem em cm para descartar ruídos minúsculos
-
       // Atualiza o pico máximo temporário
       if (distFiltrada > picoTemp) picoTemp = distFiltrada;
       
       // Se estava subindo, mas caiu além do threshold, então passamos por um PICO REAL
-      if (subindo && (picoTemp - distFiltrada > threshold)) {
+      if (subindo && (picoTemp - distFiltrada > HISTERESE_CM)) {
         subindo = false;
         fundoTemp = distFiltrada; // Reseta a busca pelo fundo
         
         if (tempoUltimoPico > 0) {
           unsigned long deltaT = agora - tempoUltimoPico;
-          if (deltaT > 150) { // Ignora ciclos absurdamente rápidos (ruído)
+          if (deltaT > PERIODO_MIN_MS) {
             somaPeriodos += deltaT;
             contagemCiclos++;
             
@@ -194,7 +195,7 @@ void loop() { // LOOP PRINCIPAL
       if (distFiltrada < fundoTemp) fundoTemp = distFiltrada;
 
       // Se estava descendo, mas subiu além do threshold, preparamos para o próximo pico
-      if (!subindo && (distFiltrada - fundoTemp > threshold)) {
+      if (!subindo && (distFiltrada - fundoTemp > HISTERESE_CM)) {
         subindo = true;
         picoTemp = distFiltrada; // Reseta a busca pelo pico
       }

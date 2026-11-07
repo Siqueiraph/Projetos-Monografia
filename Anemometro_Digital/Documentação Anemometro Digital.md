@@ -144,21 +144,17 @@ A grade, o *hold* e o cursor de leitura são implementados inteiramente no naveg
 
 A página fica em `pagina_html.h` (constante `index_html`), separada do *sketch*; o `.ino` apenas a inclui e a serve na rota `/`.
 
-### Pré-visualização da interface
+### Visualização da interface
 
-O script `ferramentas/preview_anemometro.py` (raiz do repositório; só biblioteca padrão do Python 3.8+) serve `pagina_html.h` e simula as rotas acima com um rotor virtual, permitindo ajustar a interface sem gravar o ESP32:
+O script `scripts/visualizar_interface.py` (raiz do repositório; só biblioteca padrão do Python 3.8+) serve `pagina_html.h` e responde às rotas com valores fixos de exemplo, permitindo ajustar o layout sem gravar o ESP32:
 
 ```
-python ferramentas/preview_anemometro.py [--porta 8000] [--vento 30] [--rede]
+python scripts/visualizar_interface.py anemometro [--porta 8000] [--rede]
 ```
 
 * A página é relida a cada requisição: salve o `.h` e recarregue o navegador (`http://localhost:8000`).
-* `--vento` define a velocidade angular média do rotor virtual (rad/s); a rota `/_vento?w=W` a altera durante a execução, e `w=0` para o rotor (a leitura zera após `TIMEOUT_PARADO_MS`).
 * `--rede` aceita conexões de outros aparelhos da mesma rede, para testar no celular.
-* A letra, as constantes de tempo e os valores padrão de calibração são lidos do `.ino`; a gravação na flash não é simulada.
-* Na inicialização e a cada recarga, o terminal avisa se a página usa uma rota, um `id` ou uma chave de JSON que não existe.
-
-O simulador testa apenas a interface: sensor, interrupção e *debounce* só se validam no hardware. Ao mudar rotas, chaves de JSON ou o cálculo no firmware, atualize o script junto.
+* Nada é simulado: as leituras não mudam e o que a página envia por `/set` e `/save` é descartado.
 
 ---
 
@@ -197,7 +193,7 @@ const char ID_ANEMOMETRO = 'A';  // Letra desta placa (A a D): troque antes de g
 * Os canais 1, 6 e 11 são os únicos da faixa de 2,4 GHz que não se sobrepõem; como são quatro unidades, A e D compartilham o canal 1 — mantenha-as afastadas. Os canais ficam no vetor `CANAIS_WIFI`.
 * `MAX_CLIENTES` ($6$, máximo de $10$) limita quantos celulares se conectam a cada placa ao mesmo tempo.
 
-**Modo Central (`false`):** a placa conecta-se à rede definida em `ssid`/`password` e envia *pings* à Central. Para integrá-la ao ecossistema, use as credenciais da Central:
+**Modo Central (`false`):** a placa conecta-se à rede definida em `ssid`/`password` e envia *pings* à Central com o nome `Anemometro <ID>` (o mesmo da rede própria), que deve constar em `listaProjetos[]` da Central. Para integrá-la ao ecossistema, use as credenciais da Central:
 ```cpp
 const char* ssid     = "Rede_Comunicacao";
 const char* password = "123456789";

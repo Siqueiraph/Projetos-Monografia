@@ -64,6 +64,8 @@ O servidor *web* assíncrono embarcado gerencia os seguintes caminhos HTTP na po
 
 O portal fica em `pagina_html.h` (constante `portal_html`), separado do *sketch*; o `.ino` apenas o inclui e o serve na rota `/`.
 
+Para ver a página sem gravar o ESP32, use `python scripts/visualizar_interface.py rede` (raiz do repositório) e abra `http://localhost:8000`; as rotas respondem com valores fixos de exemplo.
+
 ---
 
 ## 💻 Instalação e Configuração
@@ -82,9 +84,13 @@ O portal fica em `pagina_html.h` (constante `portal_html`), separado do *sketch*
 ### 2. Configurações da Rede Central
 As credenciais do Ponto de Acesso criado pelo ESP32 vêm configuradas como padrão[cite: 11]:
 ```cpp
-const char* ssid     = "Rede_Comunicacao";
-const char* password = "123456789";
+const char* ssidAP       = "Rede_Comunicacao";
+const char* senhaAP      = "123456789"; // Mínimo de 8 caracteres
+const int   MAX_CLIENTES = 10;          // Módulos + navegadores conectados ao mesmo tempo
+const int   CANAL_WIFI   = 1;
 ```
+
+O tempo sem *ping* até um módulo ser marcado como inativo é `TIMEOUT_INATIVO_MS` ($15\text{ s}$), e o OLED é redesenhado a cada `INTERVALO_DISPLAY_MS` ($2\text{ s}$).
 
 ---
 
@@ -94,7 +100,7 @@ Qualquer novo módulo que deseje integrar-se ao portal da Central de Comunicaç�
 
 1. **Conexão à Rede:** o subprojeto conecta-se em modo estação (`WIFI_STA`) à rede Wi-Fi gerada pela Central (`ssid`/`password` configurados), recebendo um IP dinâmico via DHCP.
 2. **Heartbeat Periódico:** o firmware do subprojeto realiza requisições `GET` periódicas (a cada $5\text{ s}$, em uma tarefa própria do FreeRTOS para não bloquear o laço principal) para `http://192.168.4.1/ping?nome=<NOME_DO_PROJETO>`. O parâmetro `nome` deve corresponder **exatamente** a uma das entradas cadastradas no vetor `listaProjetos[]` do firmware central — é esse nome que determina em qual posição do portal e do display OLED o status do módulo será exibido.
-3. **Janela de Atividade:** a cada *ping* recebido, a Central grava o IP de origem e a marca de tempo (`lastSeen`). Se nenhum *ping* for recebido por mais de $15\text{ s}$, o módulo é automaticamente marcado como inativo tanto no display OLED quanto no portal *web*.
+3. **Janela de Atividade:** a cada *ping* recebido, a Central grava o IP de origem e a marca de tempo (`ultimoPing`). Se nenhum *ping* for recebido por mais de $15\text{ s}$ (`TIMEOUT_INATIVO_MS`), o módulo é automaticamente marcado como inativo tanto no display OLED quanto no portal *web*.
 
 > **Nota:** nos quatro subprojetos, o *ping* é enviado pela função `tarefaPing`, criada com `xTaskCreate` ao final do `setup()` apenas quando `MODO_AUTONOMO = false` (no modo autônomo o módulo cria a própria rede e não há Central), e o intervalo entre envios é a constante `INTERVALO_PING_MS` ($5\text{ s}$). Como a tarefa roda em paralelo ao `loop()`, a espera pela resposta da Central — de até $1\text{ s}$ quando ela está fora de alcance — não interrompe a aquisição de dados nem a atualização dos gráficos. Ao alterar o intervalo, mantenha-o abaixo de $15\text{ s}$, para que o módulo não seja marcado como inativo entre dois *pings*.
 
@@ -103,9 +109,9 @@ Qualquer novo módulo que deseje integrar-se ao portal da Central de Comunicaç�
 > Projeto listaProjetos[4] = {
 >   {"Irrigacao",   "0.0.0.0", 0, false},
 >   {"Musical",     "0.0.0.0", 0, false},
->   {"Anemometro",  "0.0.0.0", 0, false},
+>   {"Anemometro A", "0.0.0.0", 0, false}, // O Anemômetro envia "Anemometro <ID>"
 >   {"Balanca",     "0.0.0.0", 0, false}
 > };
 > ```
 
-Dessa forma, basta que o firmware de cada subprojeto envie o `nome` correspondente (`Irrigacao`, `Musical`, `Anemometro` ou `Balanca`) para que seu botão apareça automaticamente, com link direto, no portal unificado.
+Dessa forma, basta que o firmware de cada subprojeto envie o `nome` correspondente (`Irrigacao`, `Musical`, `Anemometro <ID>` ou `Balanca`) para que seu botão apareça automaticamente, com link direto, no portal unificado.

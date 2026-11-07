@@ -13,10 +13,12 @@
 const bool MODO_AUTONOMO = true; // true = cria a própria rede (uso sem a Central) | false = conecta à Central
 
 // Rede própria (MODO_AUTONOMO = true): nome "Anemometro <ID>", acesso em http://192.168.4.1
-const char  ID_ANEMOMETRO  = 'A';            // Letra da placa: troque antes de gravar cada anemômetro
-const char* senhaAP        = "123456789";    // Mínimo de 8 caracteres
-const int   MAX_CLIENTES   = 6;              // Celulares conectados ao mesmo tempo (o ESP32 aceita até 10)
-const int   CANAIS_WIFI[4] = {1, 6, 11, 1};  // Canal de A, B, C e D: 1, 6 e 11 não se sobrepõem
+const char   ID_ANEMOMETRO  = 'A';            // Letra da placa: troque antes de gravar cada anemômetro
+const String ssidAP         = String("Anemometro ") + ID_ANEMOMETRO;
+const char*  senhaAP        = "123456789";    // Mínimo de 8 caracteres
+const int    MAX_CLIENTES   = 6;              // Celulares conectados ao mesmo tempo (o ESP32 aceita até 10)
+const int    CANAIS_WIFI[4] = {1, 6, 11, 1};  // Canal de A, B, C e D: 1, 6 e 11 não se sobrepõem
+const int    CANAL_WIFI     = CANAIS_WIFI[constrain(ID_ANEMOMETRO - 'A', 0, 3)];
 
 // Rede da Central (MODO_AUTONOMO = false)
 // const char* ssid     = "Rede_Comunicacao";
@@ -78,7 +80,7 @@ void tarefaPing(void *parametro) {
       HTTPClient http;
       http.setConnectTimeout(1000);
       http.setTimeout(1000);
-      http.begin("http://192.168.4.1/ping?nome=Anemometro");
+      http.begin(String("http://192.168.4.1/ping?nome=Anemometro%20") + ID_ANEMOMETRO);
       http.GET();
       http.end();
     }
@@ -88,11 +90,8 @@ void tarefaPing(void *parametro) {
 
 void conectarWiFi() { // CONEXÃO WI-FI
   if (MODO_AUTONOMO) {
-    // Ponto de acesso próprio: cada placa tem rede e canal distintos, todas em 192.168.4.1
-    String nomeRede = String("Anemometro ") + ID_ANEMOMETRO;
-    int canal = CANAIS_WIFI[constrain(ID_ANEMOMETRO - 'A', 0, 3)];
     WiFi.mode(WIFI_AP);
-    WiFi.softAP(nomeRede.c_str(), senhaAP, canal, 0, MAX_CLIENTES);
+    WiFi.softAP(ssidAP.c_str(), senhaAP, CANAL_WIFI, 0, MAX_CLIENTES);
   } else {
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
@@ -107,7 +106,7 @@ void setup() { // SETUP
   pinMode(PINO_SENSOR, SENSOR_HALL ? INPUT_PULLUP : INPUT_PULLDOWN);
   attachInterrupt(digitalPinToInterrupt(PINO_SENSOR), ISR_DetectaIma, CHANGE);
 
-  preferences.begin("anemo_cfg", false);
+  preferences.begin("anemometro_cfg", false);
   raioRotor = preferences.getInt("raio", 10);
   numImas   = preferences.getInt("imas", 1);
   fatorCopo = preferences.getFloat("fator", 2.5);
